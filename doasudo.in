@@ -449,10 +449,9 @@ fi
 # --foo=bar -> --foo bar normalizer: that approach moves unrecognized
 # option values into the command position.
 #
-# Short bundles (e.g. -nsu root) unpack character by character via
-# parameter expansion: _token strips the '-', _ch takes the first
-# char, _tail the rest. No subprocesses. Value-taking shorts consume
-# from _tail when bundled (-uroot) or from the next positional (-u root).
+# Short bundles (e.g. -nsu root) unpack one character at a time. A
+# value-taking short takes the rest of the bundle (-uroot), or the next
+# argument when nothing follows it (-u root).
 
 # Flags are stored as '1'; ${flag_n:+"-n"} in _doas_exec derives the literal
 # string at each call site.
@@ -478,11 +477,11 @@ while [ $# -gt 0 ]; do
       shift; break ;;
 
     # ---- Long options --------------------------------------------------------------------
+    --remove-timestamp)
+      _mark_k_option ;;
+
     --*)
-      case "$1" in
-        --remove-timestamp) _mark_k_option ;;
-        *)                  _mark_non_k_option ;;
-      esac
+      _mark_non_k_option
       case "$1" in
         --login)            flag_i=1 ;;
         --shell)            flag_s=1 ;;
@@ -509,7 +508,6 @@ while [ $# -gt 0 ]; do
         # -k, -K, and -v defer to the post-parse block, which sees the full
         # command line and enforces -K's "no command or other option" rule.
         --reset-timestamp)  flag_k=1 ;;
-        --remove-timestamp) ;;
 
         --validate)         flag_v=1 ;;
 
@@ -578,77 +576,70 @@ while [ $# -gt 0 ]; do
         *)
           die "unknown option '$1'" ;;
       esac
-      shift ;;
+      ;;
 
     # ---- Short options (including bundles like -nsu) -------------------------------------
     -?*)
-      _token="${1#-}"
-      _ch="${_token%"${_token#?}"}"
-      _tail="${_token#?}"
-      shift
+      _opts="${1#-}"
+      while [ -n "$_opts" ]; do
+        _c="${_opts%"${_opts#?}"}"   # leading character
+        _rest="${_opts#?}"           # remainder of the bundle
 
-      # Value-taking options push the tail back as the next positional
-      # so the case below consumes it as the value. Others re-inject
-      # the tail as a new bundle (-${_tail}) for the next iteration.
-      # -h exits immediately; re-injecting its tail is harmless.
-      case "$_ch" in
-        u | p | C | D | R | T | U | r | t)
-          [ -n "$_tail" ] && set -- "$_tail" "$@" ;;
-        *)
-          [ -n "$_tail" ] && set -- "-${_tail}" "$@" ;;
-      esac
+        case "$_c" in
+          K) _mark_k_option ;;
+          *) _mark_non_k_option ;;
+        esac
 
-      case "$_ch" in
-        K) _mark_k_option ;;
-        *) _mark_non_k_option ;;
-      esac
+        case "$_c" in
+          i) flag_i=1 ;;
+          s) flag_s=1 ;;
+          n) flag_n=1 ;;
+          e) flag_e=1 ;;
+          H) flag_H=1 ;;
+          k) flag_k=1 ;;
+          K) ;;
+          # -v/--validate: deferred to post-parse like -k/-K so accompanying
+          # flags (-u, -n) are visible at dispatch.
+          v) flag_v=1 ;;
+          # sudo accepts help/version in bundles; exit before later chars matter.
+          h) help; exit 0 ;;
+          V) _print_version; exit 0 ;;
+          # sudo(8) exits 0 when listing is permitted, 1 otherwise. Without
+          # policy to consult, exit 1 when a command follows (conservative),
+          # 0 otherwise. Remaining args stay in "$@" until the outer shift.
+          l) flag_l=1 ;;
 
-      case "$_ch" in
-        i) flag_i=1 ;;
-        s) flag_s=1 ;;
-        n) flag_n=1 ;;
-        e) flag_e=1 ;;
-        H) flag_H=1 ;;
-        u)
-          [ $# -ge 1 ] || die "-u requires an argument"
-          _set_user "$1"; shift ;;
-        k) flag_k=1 ;;
-        K) ;;
-        # -v/--validate: deferred to post-parse like -k/-K so accompanying
-        # flags (-u, -n) are visible at dispatch.
-        v) flag_v=1 ;;
-        # -h always means --help. Bundled tail was re-injected above; since
-        # we exit here it is never reached.
-        h) help; exit 0 ;;
-        V) _print_version; exit 0 ;;
-        # sudo(8) exits 0 when listing is permitted, 1 otherwise. Without
-        # policy to consult, exit 1 when a command follows (conservative),
-        # 0 otherwise. $1 was already shifted, so > 0 means a command.
-        l) flag_l=1 ;;
-        g) die "-g/--group is not supported; doas cannot set the target process group; use newgrp(1) or sg(1) instead" ;;
-        b) die "-b/--background is not supported; see 'sudo --help' for rationale" ;;
-        A) warn "-A/--askpass: not supported; doas will prompt on /dev/tty" ;;
-        B | P) ;;  # same: --bell, --preserve-groups
-        S) warn "-S/--stdin: not supported; doas reads passwords from /dev/tty, not stdin" ;;
-        # -N/--no-update: sudo(8) uses cached creds without updating on
-        # success. doas has no cache; no-op.
-        N) ;;
-        E) warn "-E/--preserve-env: not supported; add 'keepenv' to /etc/doas.conf instead" ;;
-        p | C | T | U | r | t)
-          [ $# -ge 1 ] || die "-${_ch} requires an argument"
-          shift ;;
-        R)
-          [ $# -ge 1 ] || die "-R requires an argument"
-          warn "-R/--chroot: not supported by doas; command will run without a chroot"
-          shift ;;
-        D)
-          [ $# -ge 1 ] || die "-D requires an argument"
-          warn "-D/--chdir: not supported by doas; command will run in the current directory"
-          shift ;;
-        *)
-          die "unknown option '-${_ch}'" ;;
-      esac
-      continue ;;
+          g) die "-g/--group is not supported; doas cannot set the target process group; use newgrp(1) or sg(1) instead" ;;
+          b) die "-b/--background is not supported; see 'sudo --help' for rationale" ;;
+          A) warn "-A/--askpass: not supported; doas will prompt on /dev/tty" ;;
+          B | P) ;;  # same: --bell, --preserve-groups
+          S) warn "-S/--stdin: not supported; doas reads passwords from /dev/tty, not stdin" ;;
+          # -N/--no-update: sudo(8) uses cached creds without updating on
+          # success. doas has no cache; no-op.
+          N) ;;
+          E) warn "-E/--preserve-env: not supported; add 'keepenv' to /etc/doas.conf instead" ;;
+
+          # Value-taking shorts: the value is the rest of the bundle when
+          # attached (-uroot), else the next argument (-u root). Either way it
+          # ends the bundle.
+          u | p | C | T | U | r | t | R | D)
+            if [ -n "$_rest" ]; then
+              _val="$_rest"
+            else
+              [ $# -ge 2 ] || die "-${_c} requires an argument"
+              _val="$2"; shift
+            fi
+            case "$_c" in
+              u) _set_user "$_val" ;;
+              R) warn "-R/--chroot: not supported by doas; command will run without a chroot" ;;
+              D) warn "-D/--chdir: not supported by doas; command will run in the current directory" ;;
+            esac                       # p C T U r t: value consumed, no doas equivalent
+            _opts=; continue ;;
+
+          *) die "unknown option '-${_c}'" ;;
+        esac
+        _opts="$_rest"
+      done ;;
 
     # ---- VAR=value environment assignments -----------------------------------------------
     # sudo(8) allows VAR=value before the command. Tokens after -- never
@@ -659,12 +650,13 @@ while [ $# -gt 0 ]; do
       _mark_non_k_option
       flag_env_assign=1
       warn "VAR=value assignments are not supported; ignoring '$1'"
-      shift; continue ;;
+      ;;
 
     # ---- First non-option token: start of command ----------------------------------------
     *)
       break ;;
   esac
+  shift
 done
 
 # ---- Post-parse validation and deferred flag dispatch ------------------------------------
