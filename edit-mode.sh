@@ -91,21 +91,6 @@ edit_mode_tty_info() {
   fi
 }
 
-# Non-exec variant of _doas_exec for edit mode, where the script must
-# continue after each call. Omits SUDO_* (cat needs none).
-# Must stay in sync with _doas_exec (see doas-flags-parity_test.sh).
-#
-# sudo(8) re-raises the signal that killed the child so the caller sees
-# WIFSIGNALED. _doas_exec inherits this via exec. _doas cannot: the shell
-# reduces signal death to a non-zero $?.
-_doas() {
-  if [ -n "$_user" ]; then
-    "$_DOAS" ${flag_n:+"-n"} -u "$_user" -- "$@"
-  else
-    "$_DOAS" ${flag_n:+"-n"} -- "$@"
-  fi
-}
-
 # Rejects root-invoked edit mode. The shim's edit path is for unprivileged
 # users; root should edit files directly.
 _edit_mode_root_guard() {

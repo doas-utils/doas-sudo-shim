@@ -96,21 +96,18 @@ Translated options:
   -s, --shell            Run \$SHELL (or invoking user's shell)
   -n, --non-interactive  Fail rather than prompt
 ${_EDIT_HELP_OPTION:+${_EDIT_HELP_OPTION}${_NL}}
-Credential-cache flags (doas has no cache; these approximate the intent):
+Credential-cache flags (approximated via doas's optional persist timestamp):
   -K, --remove-timestamp
-    Run 'doas -L' to clear persisted auth, then exit.
+    Run 'doas -L' to clear persisted authentication, then exit.
     May not be combined with a command or other option.
   -k, --reset-timestamp
-    Without a command: run 'doas -L', then exit.
-    With a command: no-op; the command runs normally.
-    In real sudo, -k with a command forces re-authentication and
-    suppresses cache update. doas has no cache, so neither applies;
-    the command runs as if -k were absent.
+    Run 'doas -L' to clear persisted authentication. With a command,
+    run it afterward.
   -v, --validate
-    Not supported; exits with an error. doas has no credential
-    cache or policy-query primitive, so -v has no faithful
-    implementation. Scripts using 'sudo -v' or 'sudo -Nnv' as an
-    auth gate must test the specific command they intend to run.
+    Run 'doas true' to authenticate and refresh the persist
+    timestamp; honors -n and -u, runs no command. A doas rule that
+    omits 'true' yields a false negative, but fails closed; gate
+    such policies on the intended command.
 
 Warned and ignored:
   -E, --preserve-env, --preserve-env=LIST
@@ -132,7 +129,7 @@ Silently ignored:
     notice; -U never takes effect.
   -N, --no-update
     In real sudo, uses cached credentials without updating them.
-    doas has no cache; no-op (same effect as -k with a command).
+    No-op; doas may still refresh its persist timestamp on authentication.
   -r/--role, -t/--type  (SELinux; not supported by doas)
 
 Fatal:
@@ -329,6 +326,19 @@ _doas_exec() {
   fi
 }
 
+# Non-exec variant of _doas_exec for callers that resume afterward (edit-mode
+# pipelines, -v validation); omits SUDO_* injection. Keep in sync with _doas_exec
+# (see doas-flags-parity_test.sh). exec lets _doas_exec inherit doas's exit status,
+# matching sudo(8), which re-raises the signal of the exited child;
+# _doas only observes a non-zero $?.
+_doas() {
+  if [ -n "$_user" ]; then
+    "$_DOAS" ${flag_n:+"-n"} -u "$_user" -- "$@"
+  else
+    "$_DOAS" ${flag_n:+"-n"} -- "$@"
+  fi
+}
+
 # Escapes a token by backslash-prefixing every character outside the safe
 # set. Loops via parameter expansion; no subprocesses. $() strips trailing
 # newlines; callers must reject arguments ending with one.
@@ -426,7 +436,7 @@ esac
 # dangerous combinations (-e with -i or -s).
 # The parser accepts -K and -v for sudoedit even though they are absent
 # from its synopsis. Both are safe: -K exits before any command runs; -v
-# exits with an error.
+# runs only a no-op probe.
 case "${0##*/}" in
   sudoedit | editas) set -- -e "$@" ;;
 esac
@@ -480,6 +490,12 @@ while [ $# -gt 0 ]; do
     --remove-timestamp)
       _mark_k_option ;;
 
+    # help/version are terminal and win over -K's exclusivity rule; match
+    # before --* so they short-circuit ahead of _mark_non_k_option and
+    # '-K --help' shows help rather than dying.
+    --help)    help; exit 0 ;;
+    --version) _print_version; exit 0 ;;
+
     --*)
       _mark_non_k_option
       case "$1" in
@@ -511,8 +527,6 @@ while [ $# -gt 0 ]; do
 
         --validate)         flag_v=1 ;;
 
-        --help)             help; exit 0 ;;
-        --version)          _print_version; exit 0 ;;
         # sudo(8) exits 0 when listing is permitted, 1 otherwise. Without
         # policy to consult, exit 1 when a command follows (conservative),
         # 0 otherwise. $# includes --list itself, so > 1 means a command.
@@ -585,7 +599,11 @@ while [ $# -gt 0 ]; do
         _c="${_opts%"${_opts#?}"}"   # leading character
         _rest="${_opts#?}"           # remainder of the bundle
 
+        # h/V are terminal and win over -K's exclusivity rule; skip marking
+        # so '-Kh' shows help (handled in the dispatch case below) rather
+        # than dying.
         case "$_c" in
+          h | V) ;;
           K) _mark_k_option ;;
           *) _mark_non_k_option ;;
         esac
@@ -614,8 +632,7 @@ while [ $# -gt 0 ]; do
           A) warn "-A/--askpass: not supported; doas will prompt on /dev/tty" ;;
           B | P) ;;  # same: --bell, --preserve-groups
           S) warn "-S/--stdin: not supported; doas reads passwords from /dev/tty, not stdin" ;;
-          # -N/--no-update: sudo(8) uses cached creds without updating on
-          # success. doas has no cache; no-op.
+          # -N/--no-update: no-op; doas may still refresh persist on auth.
           N) ;;
           E) warn "-E/--preserve-env: not supported; add 'keepenv' to /etc/doas.conf instead" ;;
 
@@ -671,16 +688,9 @@ if [ "${flag_e:-}" ] && [ "${flag_env_assign:-}" ]; then
   die "you may not specify environment variables in edit mode"
 fi
 
-# Runs 'doas -L' and exits. $1 names the flag for diagnostics.
-# doas -L exits non-zero when no token exists or the flag is unsupported;
-# the two cases are indistinguishable. Exit non-zero so the caller knows
-# the cache may not have been cleared.
-_invalidate_cache() {
-  if "$_DOAS" -L ; then
-    exit 0
-  fi
-  warn "${1}: 'doas -L' failed; the credential cache may not have been cleared"
-  exit 1
+_clear_persisted_auth() {
+  "$_DOAS" -L && { [ "${2:-}" = warn ] && return; exit 0; }
+  "${2:-die}" "${1}: 'doas -L' failed; persisted auth may not have been cleared"
 }
 
 # sudo(8): "-K may not be combined with a command or other option."
@@ -688,7 +698,7 @@ if [ "${flag_K:-}" ]; then
   if [ $# -gt 0 ]; then
     die "-K/--remove-timestamp may not be combined with a command or other options"
   fi
-  _invalidate_cache -K
+  _clear_persisted_auth -K
 fi
 
 if [ "${flag_l:-}" ]; then
@@ -697,23 +707,19 @@ if [ "${flag_l:-}" ]; then
   exit 0
 fi
 
-# -k without a command clears persisted doas auth and exits.
-# With a command, it is a no-op: sudo(8) forces re-auth and suppresses
-# cache update, but doas has no cache, so neither applies.
-if {
-  [ "${flag_k:-}" ] && [ $# -eq 0 ] &&
-  [ -z "${flag_i:-}" ] && [ -z "${flag_s:-}" ] && [ -z "${flag_e:-}" ]
-}; then
-  _invalidate_cache -k
+# -k does its best effort to clear persisted authentication with doas -L
+# (some doas builds lack -L). With a command, runs it afterward.
+if [ "${flag_k:-}" ]; then
+  [ $# -eq 0 ] && [ -z "${flag_e:-}${flag_i:-}${flag_s:-}${flag_v:-}" ] \
+    && _die_or_warn=die || _die_or_warn=warn
+  _clear_persisted_auth -k "$_die_or_warn"
 fi
 
-# -v authenticates and updates sudo's credential cache, confirming the
-# user has some privilege. doas has no cache and no policy-query primitive;
-# a per-command probe (e.g. doas true) is not equivalent: a user permitted
-# only /usr/sbin/service fails doas true, producing a false negative. Die
-# so callers discover the gap rather than rely on a wrong exit 0.
+# Best-effort sudo -v: authenticate via doas true. Fails closed; a user without
+# a rule allowing to run 'true' gets a false negative, never a false positive.
 if [ "${flag_v:-}" ]; then
-  die "-v/--validate is not supported: doas has no credential cache or policy-query primitive"
+  _doas true
+  exit
 fi
 
 # ---- Export SUDO_* variables -------------------------------------------------------------
@@ -756,15 +762,11 @@ fi
 # SUDO_COMMAND is omitted: no portable approach produces a consistent
 # value across the different dispatch paths.
 
-# ---- Edit mode ---------------------------------------------------------------------------
+# ---- Dispatch ----------------------------------------------------------------------------
 
 if [ "${flag_e:-}" ]; then
   _run_edit_mode "$@"
-fi
-
-# ---- Dispatch ----------------------------------------------------------------------------
-
-if [ -z "${flag_e:-}" ]; then
+else
   # VAR=value tokens stripped by the parser cannot reach here via normal
   # dispatch; tokens after -- can. Real sudo would exec "VAR=value" and
   # fail with "command not found"; reject explicitly for a clearer diagnostic.

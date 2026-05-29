@@ -18,10 +18,10 @@ Compatibility: Linux, FreeBSD, OpenBSD, NetBSD, DragonFly BSD, macOS
 | `-i` | login shell via target user's passwd entry |
 | `-s` | shell via `$SHELL` or invoking user's passwd entry |
 | `-e` / `sudoedit` / `editas` | edit mode for unprivileged invokers; see below |
-| `-k` | clears doas auth (`doas -L`) when no command follows |
+| `-k` | clears doas auth (`doas -L`); with a command, runs it afterward |
 | `-K` | clears doas auth (`doas -L`); no command or other options permitted |
 | `-l` | prints a "not supported" notice |
-| `-v` | exits with an error; doas has no credential cache |
+| `-v` | validates via `doas true` (honors `-n`/`-u`); best-effort, fails closed |
 | `-E`, `-A`, `-S`, `-D`, `-R` | warned and ignored |
 | `-b`, `-g` | fatal; see `sudo --help` for rationale |
 

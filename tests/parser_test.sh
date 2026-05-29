@@ -128,6 +128,9 @@ printf '\n── Short bundles ────────────────�
 _run_parser_shim "$_shim" -nu root "${_mockbin}/doas"
 _assert_doas_flags         "-nu root"           "-n -u root"
 
+_run_parser_shim "$_shim" -nsu root "${_mockbin}/doas"
+_assert_doas_flags         "-nsu root"          "-n -u root"
+
 _run_parser_shim "$_shim" -uroot "${_mockbin}/doas"
 _assert_doas_flags         "-uroot bundled"     "-u root"
 
@@ -239,6 +242,22 @@ _assert_string_contains    "-l -K: diagnostic" "may not be combined" "$_err"
 _assert_string_excludes    "-l -K: no list notice" "listing is not supported" "$_err"
 _assert_record_lacks       "-l -K: no doas -L" "-L"
 
+_run_parser_shim "$_shim" -Kn
+_assert_exit               "-Kn: exits 1"      1 "$_rc"
+_assert_string_contains    "-Kn: diagnostic"   "may not be combined" "$_err"
+
+_run_parser_shim "$_shim" -nK
+_assert_exit               "-nK: exits 1"      1 "$_rc"
+_assert_string_contains    "-nK: diagnostic"   "may not be combined" "$_err"
+
+_run_parser_shim "$_shim" -Kuroot
+_assert_exit               "-Kuroot: exits 1"  1 "$_rc"
+_assert_string_contains    "-Kuroot: diagnostic" "may not be combined" "$_err"
+
+_run_parser_shim "$_shim" --remove-timestamp "${_mockbin}/doas"
+_assert_exit               "--remove-timestamp with cmd: exits 1" 1 "$_rc"
+_assert_string_contains    "--remove-timestamp with cmd: diagnostic" "may not be combined" "$_err"
+
 _run_parser_shim "$_shim" -k
 _assert_exit               "-k alone: exits 0" 0 "$_rc"
 _assert_record_has         "-k alone: doas -L called" "-L"
@@ -249,17 +268,40 @@ _assert_string_contains    "-k doas -L fails: warning" "may not have been cleare
 
 _run_parser_shim "$_shim" -k "${_mockbin}/doas"
 _assert_exit               "-k with cmd: exits 0"  0 "$_rc"
-_assert_doas_flags         "-k with cmd: no flags" ""
+_assert_record_has         "-k with cmd: doas -L called" "-L"
 _assert_routed_via_env     "-k with cmd"
 _assert_recorded_command   "-k with cmd: command"  "${_mockbin}/doas"
 
+_run_parser_shim env DOAS_MOCK_FAIL_L=1 "$_shim" -k "${_mockbin}/doas"
+_assert_exit               "-k with cmd doas -L fails: exits 0" 0 "$_rc"
+_assert_string_contains    "-k with cmd doas -L fails: warning" "may not have been cleared" "$_err"
+_assert_recorded_command   "-k with cmd doas -L fails: command runs" "${_mockbin}/doas"
+
 _run_parser_shim "$_shim" -k -i
 _assert_exit               "-k -i: exits 0" 0 "$_rc"
+_assert_record_has         "-k -i: doas -L called" "-L"
 _assert_record_has         "-k -i: -i dispatch fired (-l present)" "-l"
 
+_run_parser_shim "$_shim" -k -v
+_assert_exit               "-k -v: exits 0" 0 "$_rc"
+_assert_record_has         "-k -v: doas -L called" "-L"
+_assert_record_has         "-k -v: still validates with 'true'" "true"
+
 _run_parser_shim "$_shim" -v
-_assert_exit               "-v: exits 1"    1 "$_rc"
-_assert_string_contains    "-v: diagnostic" "not supported" "$_err"
+_assert_exit               "-v: exits 0"     0 "$_rc"
+_assert_record_has         "-v: runs 'true'" "true"
+_assert_record_lacks       "-v: no doas -L"  "-L"
+_assert_doas_flags         "-v"              ""
+
+_run_parser_shim "$_shim" -n -v
+_assert_exit               "-n -v: exits 0"     0 "$_rc"
+_assert_record_has         "-n -v: runs 'true'" "true"
+_assert_doas_flags         "-n -v"             "-n"
+
+_run_parser_shim "$_shim" -u root -v
+_assert_exit               "-u root -v: exits 0"     0 "$_rc"
+_assert_record_has         "-u root -v: runs 'true'" "true"
+_assert_doas_flags         "-u root -v"             "-u root"
 
 printf '\n── -l / --list listing notice ──────────────────────────────────────────────────\n'
 
