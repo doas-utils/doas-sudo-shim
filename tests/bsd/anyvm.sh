@@ -6,7 +6,7 @@
 #
 # Environment:
 #   ANYVM_IMAGE, ANYVM_CACHE, ANYVM_DATA, ANYVM_SYNC, ANYVM_WORKDIR, ANYVM_KVM,
-#   ANYVM_FRESH, ANYVM_NO_LOCK, ANYVM_SSH_HOST, ANYVM_SSH_PORT, TEST_USER.
+#   ANYVM_FRESH, ANYVM_NO_LOCK, ANYVM_SSH_PORT, TEST_USER, VERBOSE.
 
 set -eu
 
@@ -17,8 +17,7 @@ Usage:
   sh tests/bsd/anyvm.sh --test <os|all>
   sh tests/bsd/anyvm.sh --cmd <string> <os|all>
 
-Interactive: AnyVM ssh to root, then su -l <user> && cd /tmp/src
-  ssh -i ~/.anyvm/ssh/anyvm-<os> -p PORT root@HOST
+Interactive: prepare on first boot, then TTY-backed user shell.
 EOF
   exit 2
 }
@@ -29,7 +28,6 @@ _repo=$(CDPATH="" cd -P -- "$_here/../.." && pwd)
 
 _CACHE_MNT=/usr/local/anyvm-cache
 _MNT=/mnt/host
-_SSH_MNT=/mnt/anyvm-ssh
 _RUNNER=${_MNT}/tests/bsd/runner.sh
 
 ANYVM_IMAGE=${ANYVM_IMAGE:-anyvm}
@@ -47,75 +45,72 @@ _has_qcow() {
 }
 
 _setup_image() {
-  if docker image inspect "$ANYVM_IMAGE" >/dev/null 2>&1 \
-    && docker run --rm --entrypoint test "$ANYVM_IMAGE" -s /anyvm.org/entrypoint-wrapper.sh >/dev/null 2>&1; then
-    return 0
-  fi
-  printf '==> building %s\n' "$ANYVM_IMAGE"
-  docker build -f "${_here}/AnyVM.Dockerfile" -t "$ANYVM_IMAGE" "${_here}"
+  printf '==> image %s\n' "$ANYVM_IMAGE"
+  _q=$([ "${VERBOSE:-0}" = 1 ] || printf '%s' '-q')
+  # shellcheck disable=SC2086
+  docker build $_q -f "${_here}/AnyVM.Dockerfile" -t "$ANYVM_IMAGE" "$_here" \
+    || _fail 'docker build failed (set VERBOSE=1 for logs)'
 }
 
-_setup_ssh() {
-  mkdir -p "${_home}/.anyvm/ssh"
-  chmod 700 "${_home}/.anyvm/ssh"
-  if [ ! -f "$_key" ]; then
-    ssh-keygen -t ed25519 -f "$_key" -N "" -C "anyvm-${_os}" </dev/null
-    chmod 600 "$_key" "${_key}.pub"
-  fi
-
-  _copy_ssh=
-  if [ -n "$_fresh" ]; then
-    _pub="${_SSH_MNT}/anyvm-${_os}.pub"
-    _copy_ssh="mkdir -p /root/.ssh &&"
-    _copy_ssh="${_copy_ssh} chmod 700 /root/.ssh &&"
-    _copy_ssh="${_copy_ssh} cat ${_pub} >> /root/.ssh/authorized_keys &&"
-    _copy_ssh="${_copy_ssh} chmod 600 /root/.ssh/authorized_keys; "
-  fi
+_fix_ownership() {
+  docker run --rm --entrypoint /bin/sh \
+    -e "ANYVM_HOST_UID=${_uid}" \
+    -e "ANYVM_HOST_GID=${_gid}" \
+    -v "$ANYVM_CACHE:${_CACHE_MNT}" \
+    -v "$_data:/data" \
+    "$ANYVM_IMAGE" \
+    -c "chown -R \"\${ANYVM_HOST_UID}:\${ANYVM_HOST_GID}\" /data ${_CACHE_MNT} 2>/dev/null || true"
 }
 
 _run_os() {
   _os=$1
   _uid=$(id -u)
   _gid=$(id -g)
-  _key="${_home}/.anyvm/ssh/anyvm-${_os}"
   _user=${TEST_USER:-user}
-  _host=${ANYVM_SSH_HOST:-127.0.0.1}
   _port=${ANYVM_SSH_PORT:-10022}
   _data=${ANYVM_DATA:-"${_home}/.anyvm/data"}
   _data_os="${_data}/${_os}"
   _cache_os="${ANYVM_CACHE:?}/${_os}"
-  _workdir=${ANYVM_WORKDIR:-/tmp/src}
+  _workdir=${ANYVM_WORKDIR:-/src}
+
+  mkdir -p "$ANYVM_CACHE" "$_data"
 
   _fresh=
   if [ -n "${ANYVM_FRESH:-}" ]; then
-    rm -rf "$_cache_os" "$_data_os" "$_key" "${_key}.pub"
+    _fix_ownership
+    rm -rf "$_cache_os" "$_data_os"
     _fresh=1
-  elif ! _has_qcow "$_data_os" "$_cache_os"; then
+  elif ! _has_qcow "$_data_os"; then
     _fresh=1
   fi
-  mkdir -p "$ANYVM_CACHE" "$_data"
-  _setup_ssh
 
   printf '==> AnyVM os=%s mode=%s user=%s\n' "$_os" "$_mode" "$_user"
 
-  _ge="BSD_USER='$(_sq "$_user")' BSD_WORKDIR='$(_sq "$_workdir")' BSD_SOURCE='$(_sq "$_MNT")'"
-  [ -n "$_fresh" ] && _ge="${_ge} BSD_FRESH=1"
-  [ "$_mode" = cmd ] && _ge="${_ge} BSD_RUN='$(_sq "$_cmd")'"
-  _run="${_ge} sh ${_RUNNER}"
+  _env="BSD_USER='$(_sq "$_user")' BSD_WORKDIR='$(_sq "$_workdir")' BSD_SOURCE='$(_sq "$_MNT")'"
+  [ -n "$_fresh" ] && _env="${_env} BSD_FRESH=1"
+  [ "$_mode" = cmd ] && _env="${_env} BSD_RUN='$(_sq "$_cmd")'"
+  _run="${_env} sh ${_RUNNER}"
+  _prepare="${_run} prepare"
+  _ensure="test -f '$(_sq "$_workdir")/.runner-setup' || ${_prepare}"
+  _su_cmd="cd '$(_sq "$_workdir")' && exec sh"
+  _user_sh="su -l '$(_sq "$_user")' -c '$(_sq "$_su_cmd")'"
 
   _docker_args=
-  _guest=
+  _tty=0
   case "$_mode" in
     interactive)
-      _docker_args="-it -p ${_port}:10022"
-      printf '==> ssh -i %s -p %s root@%s\n' "$_key" "$_port" "$_host"
-      printf '    su -l %s && cd %s\n\n' "$_user" "$_workdir"
-      [ -n "$_fresh" ] && _guest="${_copy_ssh}${_run} prepare"
+      _docker_args="-it"
+      _tty=1
+      _guest="${_ensure} && ${_user_sh}"
+      printf '==> '
+      [ -n "$_fresh" ] && printf 'preparing VM, then '
+      printf 'opening shell as %s\n' "$_user"
       ;;
     *)
-      _guest="${_copy_ssh}${_run} prepare && ${_run} test"
+      _guest="${_prepare} && ${_run} test"
       ;;
   esac
+  _guest="trap 'halt -p' EXIT INT TERM; ${_guest}"
 
   _kvm=
   [ "${ANYVM_KVM:-0}" = 1 ] && [ -e /dev/kvm ] && _kvm="--device /dev/kvm:/dev/kvm"
@@ -132,8 +127,8 @@ _run_os() {
   set -- "$@" docker run --rm $_docker_args $_kvm \
     -e "ANYVM_HOST_UID=${_uid}" \
     -e "ANYVM_HOST_GID=${_gid}" \
+    -e "ANYVM_SSH_TTY=${_tty}" \
     -v "$_repo:${_MNT}" \
-    -v "${_home}/.anyvm/ssh:${_SSH_MNT}:ro" \
     -v "$ANYVM_CACHE:${_CACHE_MNT}" \
     -v "$_data:/data" \
     "$ANYVM_IMAGE" \
@@ -141,15 +136,11 @@ _run_os() {
     --remote-vnc off \
     --os "$_os" \
     --sync "${ANYVM_SYNC:-sshfs}" \
-    --ssh-port "$_port"
-  [ -n "$_guest" ] && set -- "$@" -- /bin/sh -ec "$_guest"
+    --ssh-port "$_port" \
+    -- "/bin/sh -ec '$(_sq "$_guest")'"
 
   _dc=0
-  "$@" || _dc=$?  # run docker container
-
-  if [ "$_mode" = interactive ] && [ -n "$_fresh" ] && [ "$_dc" -eq 0 ]; then
-    exec ssh -t -i "$_key" -p "$_port" root@"$_host" exec su -l "$_user"
-  fi
+  "$@" || _dc=$?
 
   [ -n "${ANYVM_NO_LOCK:-}" ] && return "$_dc"
   [ "$_dc" -eq 0 ] && return 0

@@ -34,23 +34,28 @@ _sync_source() {
 
 _prepare() {
   : "${BSD_USER:?}" "${BSD_WORKDIR:?}"
-  _marker="${BSD_WORKDIR}/.runner-setup"
-  _sync_source "$_marker"
 
   if command -v pw >/dev/null 2>&1; then
     export ASSUME_ALWAYS_YES=yes
     pkg install -y doas gmake socat vim
     pw usershow "$BSD_USER" >/dev/null 2>&1 || pw useradd "$BSD_USER" -m -G wheel
+    _doas_conf=/usr/local/etc/doas.conf
   else
-    [ "$(uname)" = OpenBSD ] && _f="-I -z" _v="--gtk3" || _f="" _v=""
+    if [ "$(uname)" = OpenBSD ]; then
+      _f="-I -z" _doas="" _v="--gtk3" _doas_conf=/etc/doas.conf
+    else
+      _f="" _doas="doas" _v="" _doas_conf=/usr/pkg/etc/doas.conf
+    fi
     # shellcheck disable=SC2086
-    pkg_add $_f doas gmake socat "vim$_v"
+    pkg_add $_f $_doas gmake socat "vim$_v"
     id "$BSD_USER" >/dev/null 2>&1 || useradd -m -g =uid -G wheel "$BSD_USER"
   fi
-  printf '%s\n' 'permit nopass :wheel' > /etc/doas.conf
-  chmod 400 /etc/doas.conf
+  printf '%s\n' 'permit nopass :wheel' > "$_doas_conf"
+  chmod 400 "$_doas_conf"
   chown -R "$BSD_USER" "$BSD_WORKDIR"
 
+  _marker="${BSD_WORKDIR}/.runner-setup"
+  _sync_source "$_marker"
   : > "$_marker"
 }
 
