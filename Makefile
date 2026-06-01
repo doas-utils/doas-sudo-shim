@@ -424,7 +424,6 @@ CORE_TESTS = \
   DOASUDO_TEST_EDIT_MODE=$(EDIT_MODE) sh tests/parser_test.sh doasudo.in && \
   sh tests/edit-mode-disabled_test.sh doasudo.in
 EDIT_TESTS = \
-  sh tests/doas-flags-parity_test.sh doasudo.in && \
   sh tests/edit-mode-parser_test.sh doasudo.in && \
   sh tests/edit-mode_test.sh doasudo.in
 BROKER_TESTS = \

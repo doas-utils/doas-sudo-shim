@@ -268,67 +268,45 @@ _user_shell() {
   esac
 }
 
-# Execs doas, setting SUDO_* for the target. Reads $_user.
-# All dispatch paths converge here to keep SUDO_* assignment in one place.
+# doas dispatch. $_DOAS and /usr/bin/env are absolute: a bare name would let a
+# keepenv-poisoned PATH inject a malicious binary. The trailing `--` is always
+# emitted, so a command beginning with `-` cannot be parsed as a doas flag.
 #
-# $_DOAS and /usr/bin/env are absolute paths; a bare name would let a
-# keepenv-poisoned PATH substitute a trojan.
-#
-# if/else rather than ${_user:+-u "$_user"}: the shim makes no assumptions
-# about $_user's contents (validation is deferred to doas), so the two-token
-# expansion must be safe for any value, and explicit branches are the correct
-# POSIX sh solution. Update both branches when adding doas flags and run
-# doas-flags-parity_test.sh.
-#
-# -- after /usr/bin/env prevents a -i in "$@" from clearing the environment.
-# Call sites must not pass --: it lands between the VAR=VALUE pairs and the
-# command, causing env to exec '--' and exit 127.
-#
-# SUDO_PS1: sudo(8) passes SUDO_PS1 to the target as PS1.
-# ${SUDO_PS1+PS1="$SUDO_PS1"} expands only when SUDO_PS1 is set (including
-# empty), preserving the set-vs-unset distinction. The inner double-quotes
-# prevent field splitting per POSIX 2.6.2: field splitting is not performed on
-# the results of a parameter expansion that occurs inside double-quotes,
-# so values with spaces remain a single token passed to env(1):
-#
-#   SUDO_PS1='foo bar' sh -c \
-#     '/usr/bin/env -- ${SUDO_PS1+PS1="$SUDO_PS1"} printenv PS1'
-#   -> foo bar  # one env argument, not two
+# POSIX sh has no arrays, so argv is built back-to-front: read each `set --`
+# as pushing its words onto the front of "$@".
+_doas_invoke() {
+  _di_exec=$1; shift
+  set -- -- "$@"
+  [ -z "${_user:-}" ]  || set -- -u "$_user" "$@"
+  [ -z "${flag_n:-}" ] || set -- -n "$@"
+  # shellcheck disable=SC2086
+  ${_di_exec:+exec} "$_DOAS" "$@"
+}
+
+# Execs doas with SUDO_* set for the target, inheriting its exit status to match
+# sudo(8). `--` after /usr/bin/env stops a -i in "$@" from clearing the
+# environment; callers must not pass -- themselves, or env execs it and exits
+# 127. SUDO_PS1 uses +x so a set-but-empty value still reaches the target.
 _doas_exec() {
   _de_home=
   if [ -n "${flag_H:-}" ]; then
     _de_home=$(_user_home "${_user:-root}") || exit 1
   fi
-  if [ -n "$_user" ]; then
-    exec "$_DOAS" ${flag_n:+"-n"} -u "$_user" -- \
-      /usr/bin/env -- \
-        ${flag_H:+"HOME=$_de_home"} \
-        SUDO_UID="$SUDO_UID" SUDO_GID="$SUDO_GID" SUDO_USER="$SUDO_USER" \
-        SUDO_HOME="$SUDO_HOME" SUDO_TTY="$SUDO_TTY" \
-        ${SUDO_PS1+PS1="$SUDO_PS1"} \
-      "$@"
-  else
-    exec "$_DOAS" ${flag_n:+"-n"} -- \
-      /usr/bin/env -- \
-        ${flag_H:+"HOME=$_de_home"} \
-        SUDO_UID="$SUDO_UID" SUDO_GID="$SUDO_GID" SUDO_USER="$SUDO_USER" \
-        SUDO_HOME="$SUDO_HOME" SUDO_TTY="$SUDO_TTY" \
-        ${SUDO_PS1+PS1="$SUDO_PS1"} \
-      "$@"
-  fi
+  [ "${SUDO_PS1+x}" = x ] && set -- "PS1=$SUDO_PS1" "$@"
+  set -- "SUDO_TTY=$SUDO_TTY" "$@"
+  set -- "SUDO_HOME=$SUDO_HOME" "$@"
+  set -- "SUDO_USER=$SUDO_USER" "$@"
+  set -- "SUDO_GID=$SUDO_GID" "$@"
+  set -- "SUDO_UID=$SUDO_UID" "$@"
+  [ -z "${flag_H:-}" ] || set -- "HOME=$_de_home" "$@"
+  set -- /usr/bin/env -- "$@"
+  _doas_invoke exec "$@"
 }
 
-# Non-exec variant of _doas_exec for callers that resume afterward (edit-mode
-# pipelines, -v validation); omits SUDO_* injection. Keep in sync with _doas_exec
-# (see doas-flags-parity_test.sh). exec lets _doas_exec inherit doas's exit status,
-# matching sudo(8), which re-raises the signal of the exited child;
-# _doas only observes a non-zero $?.
+# Non-exec variant for callers that resume afterward (edit-mode pipelines, -v
+# validation); omits SUDO_* injection and observes only doas's $?.
 _doas() {
-  if [ -n "$_user" ]; then
-    "$_DOAS" ${flag_n:+"-n"} -u "$_user" -- "$@"
-  else
-    "$_DOAS" ${flag_n:+"-n"} -- "$@"
-  fi
+  _doas_invoke '' "$@"
 }
 
 # Escapes a token by backslash-prefixing every character outside the safe
@@ -457,8 +435,8 @@ fi
 # value-taking short takes the rest of the bundle (-uroot), or the next
 # argument when nothing follows it (-u root).
 
-# Flags are stored as '1'; ${flag_n:+"-n"} in _doas_exec derives the literal
-# string at each call site.
+# Flags are stored as '1'; _doas_invoke emits the literal doas option for each
+# one that is set.
 flag_i=; flag_s=; flag_n=; flag_e=; flag_H=; flag_k=; flag_K=; flag_l=; flag_v=; flag_env_assign=
 
 _user=

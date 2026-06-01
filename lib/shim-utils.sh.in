@@ -56,7 +56,7 @@ _is_decimal() {
 }
 
 # Non-empty ASCII octal digit string (e.g. stat mode from %a / %Lp, baked metadata mode).
-# shellcheck disable=SC2317
+# shellcheck disable=SC2317,SC2329
 _is_octal() {
   case "$1" in
     ''|*[!0-7]*) return 1 ;;
@@ -70,7 +70,7 @@ _check_digest() {
 }
 
 # Baked install metadata from Makefile/stat: <sha256hex>:<uid>:<gid>:<mode>.
-# shellcheck disable=SC2317
+# shellcheck disable=SC2317,SC2329
 _check_meta_str() {
   _cms_head=${1%:*:*:*}
   [ "$1" != "$_cms_head" ] && _is_hex64 "$_cms_head" || return 1
@@ -124,26 +124,26 @@ _stat_probe() {
 }
 
 # Returns the device:inode of $1.
-# shellcheck disable=SC2317
+# shellcheck disable=SC2317,SC2329
 _get_dev_inode() { "$_STAT" "$_STAT_FLAG" '%d:%i' "$1" 2>/dev/null; }
 
 # Returns the device:inode:ctime:mtime:mode tuple of $1 (directory snapshot).
-# shellcheck disable=SC2317
+# shellcheck disable=SC2317,SC2329
 _get_dir_meta() { "$_STAT" "$_STAT_FLAG" "$_STAT_DIR_FMT" "$1" 2>/dev/null; }
 
 # Same as _get_inode but follows symlinks (-L). GNU /dev/fd/N is a symlink;
 # without -L, stat(1) reports the fd link inode, not the open file description.
-# shellcheck disable=SC2317
+# shellcheck disable=SC2317,SC2329
 _get_fd_inode() { "$_STAT" -L "$_STAT_FLAG" "$_STAT_FD_FMT" "$1" 2>/dev/null || printf '%s' '-'; }
 
 # Returns the mtime of $1 as a decimal integer, or '-' on failure.
 # The '-' sentinel causes callers to treat the file as always modified.
-# shellcheck disable=SC2317
+# shellcheck disable=SC2317,SC2329
 _get_mtime() { "$_STAT" "$_STAT_FLAG" "$_STAT_MTIME_FMT" "$1" 2>/dev/null || printf '%s' '-'; }
 
 # Returns byte size of $1 as a decimal integer, or '-' on stat failure.
 # '-' means unknown size. Callers must reject or abort.
-# shellcheck disable=SC2317
+# shellcheck disable=SC2317,SC2329
 _get_size() { "$_STAT" "$_STAT_FLAG" "$_STAT_SIZE_FMT" "$1" 2>/dev/null || printf '%s' '-'; }
 
 # uid:gid:mode metadata for file $1.

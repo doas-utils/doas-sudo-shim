@@ -21,8 +21,7 @@ VERBOSE=1 sh tests/parser_test.sh
 
 ### Test Coverage Summary
 
-- `tests/doas-flags-parity_test.sh`: Verifies flag parity between `_doas` and `_doas_exec`.
-- `tests/parser_test.sh`: Validates argument parsing and early rejection of invalid edit requests.
+- `tests/parser_test.sh`: Validates argument parsing, the emitted doas flag/env argv contract, and early rejection of invalid edit requests.
 - `tests/edit-mode_test.sh`: Evaluates the edit write-back path, mtime skips, PTY prompts, and SUDO_EDITOR header checks.
 - `broker/tests/broker-contracts_test.sh`: Verifies the shim-broker IPC interface for consistency.
 - `broker/tests/allowlist-parse_test.sh`: Tests the allowlist parser against golden fixtures.
