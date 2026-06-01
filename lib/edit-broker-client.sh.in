@@ -91,7 +91,11 @@ _run_edit_broker() {
     edit_mode_info "cannot open broker response for '${_f}'"
     return 1
   }
-  _reb_fail() { exec 5<&-; edit_mode_info "$1"; }
+  _reb_fail() {
+    exec 5<&-
+    _reb_msg=$("$_CAT" -- "$_reb_err" 2>/dev/null || true)
+    edit_mode_info "${1}${_reb_msg:+: $_reb_msg}"
+  }
   IFS= read -r _reb_line <&5 || { _reb_fail "empty broker response for '${_f}'"; return 1; }
   case "$_reb_line" in
     RESP_CODE=*) _reb_code="${_reb_line#RESP_CODE=}" ;;
