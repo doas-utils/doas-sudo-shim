@@ -30,7 +30,7 @@ The shipped broker (`edit-broker.sh` from `edit-broker.sh.in`) documents policy 
 ### Trust boundaries
 
 - Invoking user — Chooses `SUDO_EDITOR`, `VISUAL`, or `EDITOR` (or `vi`); path must match the allowlist.
-- Shim — Frames I/O, verifies broker and `shim-utils` metadata before `doas`, write-back.
+- Shim — Frames I/O, verifies broker metadata before `doas`, write-back.
 - `doas` / OS — Who may run the broker and as which user.
 - Broker — Dedicated UID; owns staging; the allowlist names the binary only; `argv`, environment, and shipped configs come from the registry and baked metadata.
 - Allowlist — Root-owned policy; `root:root`, `mode & 022 == 0`, broker-readable; parent path root-controlled ([packaging/README.md](../packaging/README.md)).
@@ -38,7 +38,7 @@ The shipped broker (`edit-broker.sh` from `edit-broker.sh.in`) documents policy 
 
 ### Enforced at runtime
 
-Enforce wire shape and caps; compare `UTILS_METADATA` to `shim-utils.sh`; run `allowlist-parse.awk` (reject malformed files and absent editors); match `EXEC` and `PROFILE` to the wire; build `argv` from the registry; clear `PATH`; check shipped configs under `BROKER_CONFIG_DIR` against per-file metadata; hold the per-TTY lock; follow staging rules. Read `SECURITY NOTE`, the IPC spec, and the Allowlist spec.
+Enforce wire shape and caps; run `allowlist-parse.awk` (reject malformed files and absent editors); match `EXEC` and `PROFILE` to the wire; build `argv` from the registry; clear `PATH`; check shipped configs under `BROKER_CONFIG_DIR` against per-file metadata; hold the per-TTY lock; follow staging rules. Read `SECURITY NOTE`, the IPC spec, and the Allowlist spec.
 
 ### Out of scope
 
@@ -50,7 +50,7 @@ Enforce wire shape and caps; compare `UTILS_METADATA` to `shim-utils.sh`; run `a
 
 ### Integrity chain
 
-Baked metadata uses `sha256:0:0:<mode>`; `stat(1)` at runtime must match (`755` broker, `644` `shim-utils.sh`, broker client, shipped `vimrc`). The shim checks `EDIT_BROKER_METADATA` on the broker script and `EDIT_BROKER_CLIENT_METADATA` on `lib/edit-broker-client.sh` before sourcing. `shim-utils.sh` gets a wire check and a source check. The allowlist undergoes parse-time checks without a content digest. Shipped configs use `_check_file_meta` against baked lines (for example `BROKER_CONFIG_VIMRC_METADATA` on `$(BROKER_CONFIG_DIR)/vimrc` when the Makefile supplies them). See [Editor Allowlist Spec.md](Editor%20Allowlist%20Spec.md) (Integrity model).
+Baked metadata uses `sha256:0:0:<mode>`; `stat(1)` at runtime must match (`755` broker, `644` broker client and shipped `vimrc`). The shim checks `EDIT_BROKER_METADATA` on the broker script and `EDIT_BROKER_CLIENT_METADATA` on `lib/edit-broker-client.sh` before sourcing. `shim-utils.sh` is embedded into the shim and broker at build time, so it carries the binary's trust basis with no separate metadata gate. The allowlist undergoes parse-time checks without a content digest. Shipped configs use `_check_file_meta` against baked lines (for example `BROKER_CONFIG_VIMRC_METADATA` on `$(BROKER_CONFIG_DIR)/vimrc` when the Makefile supplies them). See [Editor Allowlist Spec.md](Editor%20Allowlist%20Spec.md) (Integrity model).
 
 ---
 

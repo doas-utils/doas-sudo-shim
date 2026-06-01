@@ -58,10 +58,6 @@ IFS=$(printf ' \t\n_'); IFS="${IFS%_}"
 
 _VERSION='@VERSION@'
 
-# Baked in at build time; runtime PATH cannot influence it. Shim must be
-# installed in a root-owned directory (e.g. /usr/local/bin).
-_SHIM_UTILS_PATH='@SHIM_UTILS@'
-_SHIM_UTILS_METADATA='@UTILS_METADATA@'
 # @EDIT_BROKER_METADATA@
 
 _NL=$(printf '\n_'); _NL="${_NL%_}"
@@ -181,11 +177,7 @@ _edit_mode_help() { die "edit mode is not built into this doasudo"; }
 
 warn()  { printf 'sudo: warning: %s\n' "$*" >&2; }
 die()   { printf 'sudo: %s\n' "$*" >&2; exit 1; }
-fatal() { die "$*"; }  # "$_SHIM_UTILS_PATH" (shim-utils.sh) calls this
-
-[ -r "$_SHIM_UTILS_PATH" ] || die "missing ${_SHIM_UTILS_PATH} (incomplete installation)"
-# shellcheck disable=SC1091 source=lib/shim-utils.sh
-. "$_SHIM_UTILS_PATH"
+fatal() { die "$*"; }  # embedded shim-utils helpers call this
 
 # doas has no version flag; report without probing.
 _print_version() {
@@ -413,6 +405,8 @@ _exec_login_shell() {
     _doas_exec "$_els_shell" -l -c "cd -- ${_els_home} && ${_els_cmd}"
   fi
 }
+
+# @SHIM_UTILS_BLOCK@
 
 _run_edit_mode() { _edit_mode_help; }
 # @EDIT_MODE_BLOCK@

@@ -37,7 +37,6 @@ The Makefile builds and installs the following layout. Pass `OVERWRITE_SYMLINKS=
 | `$(BINDIR)/sudo` | Shim binary |
 | `$(BINDIR)/sudoedit` | Symlink → `sudo` |
 | `$(BINDIR)/editas` | Symlink → `sudo` |
-| `$(SHIM_LIBEXEC_DIR)/shim-utils.sh` | Shared shell helpers |
 | `$(SHIM_LIBEXEC_DIR)/edit-broker-client.sh` | Broker IPC client |
 | `$(SHIM_LIBEXEC_DIR)/edit-broker` | Edit broker |
 | `$(SHIM_LIBEXEC_DIR)/allowlist-parse.awk` | Allowlist parser |
@@ -67,12 +66,10 @@ Calling `_compute_metadata <file> <octal-mode> [stat-ug]` (from `utils/metadata-
 | Component | Mode | Embedded Variable |
 | :--- | :--- | :--- |
 | `broker/edit-broker.sh` | `755` | `EDIT_BROKER_METADATA` |
-| `lib/shim-utils.sh` | `644` | `UTILS_METADATA` |
 | `config/vimrc` | `644` | `BROKER_CONFIG_VIMRC_METADATA` |
 
 Build Rules:
 - *Release and Cross-Builds:* The Makefile computes hashes using hardcoded root ownership (`0:0:<octal-mode>`). `EDIT_BROKER_METADATA` always hashes the source tree's `broker/edit-broker.sh`, even if `EDIT_BROKER_SRC` points elsewhere. You must keep the source tree file byte-identical to your shipped script, or the shim will reject it.
-- *Test Harnesses:* Setting `UTILS_METADATA_PATH` and `UTILS_METADATA_COMPUTE_MODE=stat-ug` overrides the default behavior and reads live `uid:gid:mode` directly from the host file. This is reserved for local testing and is never triggered by standard installations.
 
 ## Uninstall
 

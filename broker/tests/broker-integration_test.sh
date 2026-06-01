@@ -106,12 +106,10 @@ _fixture_mock_edit_broker="${_here}/fixtures/ipc/mock-edit-broker.sh.in"
 awk \
   -v _sha_tool="${_mockbin}/${_SHA_KIND}" \
   -v _sha_flag="${_SHA_FLAG}" \
-  -v _um="${_utils_metadata}" \
   -v _magic="${_eb_magic}" '
 {
   gsub("@MOCKBIN_SHA@", _sha_tool)
   gsub("@SHA_FLAG@", _sha_flag)
-  gsub("@UTILS_METADATA@", _um)
   gsub("@MAGIC@", _magic)
   print
 }' "$_fixture_mock_edit_broker" > "${_mockbin}/edit-broker"
@@ -136,7 +134,6 @@ _tabbed_editor=$(printf '/bin/vi\t/bin/evil')
 
 _assert_mock_first_line "mock: unnormalized PRE_DIGEST -> RESP_CODE=1" 'RESP_CODE=1' <<EOF
 MAGIC=${_eb_magic}
-UTILS_METADATA=${_utils_metadata}
 EDITOR=${_mockbin}/editor_modify
 PRE_DIGEST=${_unnorm_pre}
 REQ_LEN=0
@@ -144,7 +141,6 @@ EOF
 
 _assert_mock_first_line "mock: tab in EDITOR -> RESP_CODE=1" 'RESP_CODE=1' <<EOF
 MAGIC=${_eb_magic}
-UTILS_METADATA=${_utils_metadata}
 EDITOR=${_tabbed_editor}
 PRE_DIGEST=-
 REQ_LEN=0

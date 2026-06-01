@@ -51,7 +51,6 @@ _run_edit_broker() {
   # ---- Build request file (header lines + NUL-safe body cat) -----------------------------
   {
     printf 'MAGIC=%s\n' "$_MAGIC"
-    printf 'UTILS_METADATA=%s\n' "$_SHIM_UTILS_METADATA"
     printf 'EDITOR=%s\n' "$_editor"
     printf 'PRE_DIGEST=%s\n' "$_reb_pre_digest"
     printf 'REQ_LEN=%s\n' "$_reb_req_len"

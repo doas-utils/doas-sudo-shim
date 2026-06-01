@@ -38,11 +38,11 @@ _parser_setup "$@"
 
 _build_edit_parser_shims() {
   _shim_edit="${_tmp}/sudo_edit"
-  _parser_build_shim "$_shim_edit" "$_bindir_std" "$_utils_meta" "$_shim_utils_src" \
+  _parser_build_shim "$_shim_edit" "$_bindir_std" "$_shim_utils_src" \
     --stub-edit-mode-root-guard
 
   _shim_edit_leaf="${_tmp}/sudo_edit_leaf"
-  _parser_build_shim "$_shim_edit_leaf" "$_bindir_std" "$_utils_meta" "$_shim_utils_src" \
+  _parser_build_shim "$_shim_edit_leaf" "$_bindir_std" "$_shim_utils_src" \
     --stub-edit-mode-root-guard \
     --stub-check-path-walk
 }

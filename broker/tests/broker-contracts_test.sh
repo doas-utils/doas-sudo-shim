@@ -33,7 +33,6 @@ fail() {
 
 _expect_req_order="$(cat <<EOF
 MAGIC=$MAGIC
-UTILS_METADATA=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa:0:0:644
 EDITOR=/usr/bin/vi
 PRE_DIGEST=-
 REQ_LEN=3
@@ -49,9 +48,6 @@ _first_rsp_err=$(awk 'NR==1{print; exit}' "$_fx_rsp_err")
 
 awk -v m="$MAGIC" 'index($0, "`MAGIC=" m "`"){found=1} END{exit found?0:1}' "$_doc" \
   || fail "doc does not describe MAGIC=$MAGIC"
-
-awk 'index($0, "`UTILS_METADATA`"){found=1} END{exit found?0:1}' "$_doc" \
-  || fail "doc does not describe UTILS_METADATA"
 
 _broker_magic=$(sed -n "s/^_MAGIC='\\(.*\\)'$/\\1/p" "$_broker" | head -n1)
 [ -n "$_broker_magic" ] || fail 'broker MAGIC assignment not found (expected baked single-quoted MAGIC= line)'

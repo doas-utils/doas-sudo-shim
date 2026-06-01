@@ -126,11 +126,6 @@ rm -f "$_repo/lib/shim-utils.sh"
 (cd "$_repo" && "$MAKE" $(_make_s) lib/shim-utils.sh SHIM_PATH="${_mockbin}:${_sys_path}") \
   || { printf 'error: make lib/shim-utils.sh failed\n' >&2; exit 1; }
 
-_utils_meta=$(_compute_metadata "$_repo/lib/shim-utils.sh" 644 stat-ug) \
-  || {
-    printf 'error: could not compute UTILS_METADATA for lib/shim-utils.sh\n' >&2
-    exit 1
-  }
 _eb_client_meta=$(_compute_metadata "$_repo/lib/edit-broker-client.sh" 644 stat-ug) \
   || {
     printf 'error: could not compute metadata for lib/edit-broker-client.sh\n' >&2
@@ -153,7 +148,7 @@ if [ -n "$_built" ]; then
 else
   _version=$(cat "${_here}/VERSION" 2>/dev/null) || _version='unknown'
   _build_test_shim "$_repo" "$_shim_src" "$_shim" "${_mockbin}:${_sys_path}" \
-    "$_utils_meta" "$_version" "${_repo}/lib/shim-utils.sh" \
+    "$_version" "${_repo}/lib/shim-utils.sh" \
     "${_repo}/lib/edit-broker-client.sh" "$_eb_client_meta" \
     "${_mockbin}/edit-broker" "${_broker_shim_meta}" \
     || exit 1

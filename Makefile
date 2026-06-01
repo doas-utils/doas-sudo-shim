@@ -13,7 +13,7 @@
 # policy files (snippet, shipped config dir under $(DOAS_SNIPPET_DIR)/config/,
 # example allowlist), and EDIT_BROKER_STAGING_DIR (0700). Broker mode is unused
 # until doas policy permits it.
-# EDIT_BROKER_METADATA / UTILS_METADATA bake from build-tree files at recipe time
+# EDIT_BROKER_METADATA bakes from build-tree files at recipe time
 # (not at Makefile parse). Packaging: same DESTDIR/PREFIX for one `make install`.
 #
 # Host post-install: folded into `make install` when DESTDIR empty and root; or
@@ -75,9 +75,9 @@ _LN_FLAGS := $(if $(OVERWRITE_SYMLINKS),-f,)
 # Shim runtime PATH (ignores the caller's PATH). Includes sbin (doas may live
 # there). Override for non-standard layouts (NixOS, pkgsrc, etc.).
 SHIM_PATH ?= $(BINDIR):$(SBINDIR):/usr/bin:/usr/sbin:/bin:/sbin
-# Installed helpers; broker sources shim-utils.sh too.
+# Installed helpers (edit-broker client; allowlist parser). shim-utils.sh is
+# embedded into the shim and broker at build time, not installed here.
 SHIM_LIBEXEC_DIR ?= $(PREFIX)/libexec/doasudo
-SHIM_UTILS ?= $(SHIM_LIBEXEC_DIR)/shim-utils.sh
 
 EDIT_BROKER_CLIENT ?= $(SHIM_LIBEXEC_DIR)/edit-broker-client.sh
 EDIT_BROKER_PATH ?= $(SHIM_LIBEXEC_DIR)/edit-broker
@@ -139,17 +139,11 @@ BROKER_E2E_ENV := \
   BROKER_E2E_TARGET=$(PREFIX)/share/doasudo/broker-e2e-seed
 
 # ---- Baked metadata ----------------------------------------------------------------------
-# EDIT_BROKER_METADATA / UTILS_METADATA: baked into the shim and broker. Format
+# EDIT_BROKER_METADATA: baked into the shim. Format
 # <sha256hex>:0:0:<mode> (root-owned expectation; mode matches install -m).
 # Recursive = + override: $(shell _compute_metadata ...) runs when recipes expand,
 # after prerequisites refresh sources; digest not overridable from env/CLI.
-# UTILS_METADATA_PATH (default lib/shim-utils.sh) + optional UTILS_METADATA_COMPUTE_MODE=stat-ug
-# for harnesses hashing a different path with live uid/gid (see utils/metadata-utils.sh).
 _metadata_utils ?= $(CURDIR)/utils/metadata-utils.sh
-UTILS_METADATA_PATH = $(CURDIR)/lib/shim-utils.sh
-UTILS_METADATA_COMPUTE_MODE =
-
-override UTILS_METADATA = $(shell . "$(_metadata_utils)" && _compute_metadata "$(UTILS_METADATA_PATH)" 644 $(UTILS_METADATA_COMPUTE_MODE) 2>/dev/null || true)
 override EDIT_BROKER_METADATA = $(shell . "$(_metadata_utils)" && _compute_metadata "$(CURDIR)/broker/edit-broker.sh" 755 2>/dev/null || true)
 override EDIT_BROKER_CLIENT_METADATA = $(shell . "$(_metadata_utils)" && _compute_metadata "$(CURDIR)/lib/edit-broker-client.sh" 644 2>/dev/null || true)
 
@@ -168,6 +162,16 @@ _SEP := $(shell printf '\001')
 
 define _sed_entry
 -e "s$(_SEP)@$(1)@$(_SEP)$(2)$(_SEP)"
+endef
+
+# Embed pre-rendered lib/shim-utils.sh (BINDIR baked) at the marker. Like
+# @EDIT_MODE_BLOCK@: sed `r` appends raw bytes; `s@...@` cannot touch them, so
+# the source must already be substituted. Unconditional (EDIT_MODE-independent).
+define _sed_entry_shim_utils
+-e '/^# @SHIM_UTILS_BLOCK@$$/{' \
+-e '  r lib/shim-utils.sh' \
+-e '  d' \
+-e '}'
 endef
 
 ifeq ($(EDIT_MODE),1)
@@ -222,7 +226,7 @@ define _verify_no_unsubst
 endef
 
 # broker substitutions: pipe-separated tokens (no (...) in pattern; breaks $(call)).
-BROKER_SUBST_CHECK_ERE := @EDIT_BROKER_STAGING_DIR@|@ALLOWLIST_PATH@|@ALLOWLIST_PARSER@|@EDIT_BROKER_TTY@|@BINDIR@|@MAGIC@|@MAX_BROKER_BYTES@|@BROKER_CONFIG_DIR@|@BROKER_CONFIG_VIMRC_METADATA@|@SHIM_UTILS@|@UTILS_METADATA@
+BROKER_SUBST_CHECK_ERE := @EDIT_BROKER_STAGING_DIR@|@ALLOWLIST_PATH@|@ALLOWLIST_PARSER@|@EDIT_BROKER_TTY@|@BINDIR@|@MAGIC@|@MAX_BROKER_BYTES@|@BROKER_CONFIG_DIR@|@BROKER_CONFIG_VIMRC_METADATA@|@SHIM_UTILS_BLOCK@
 
 # ---- Build -------------------------------------------------------------------------------
 
@@ -233,16 +237,6 @@ lib/shim-utils.sh: lib/shim-utils.sh.in Makefile
   chmod 644 "$@"
   $(call _verify_no_unsubst,$@,@BINDIR@)
 
-# Ad hoc shim-utils path: shim-utils/build-to SHIM_UTILS_BUILD_TO=/tmp/u.sh SHIM_PATH=...
-.PHONY: shim-utils/build-to
-shim-utils/build-to: lib/shim-utils.sh.in Makefile
-  @test -n "$(SHIM_UTILS_BUILD_TO)" || { printf 'error: SHIM_UTILS_BUILD_TO required\n' >&2; exit 1; }
-  sed \
-    $(call _sed_entry,BINDIR,$(SHIM_PATH)) \
-    lib/shim-utils.sh.in > "$(SHIM_UTILS_BUILD_TO)"
-  chmod 644 "$(SHIM_UTILS_BUILD_TO)"
-  $(call _verify_no_unsubst,$(SHIM_UTILS_BUILD_TO),@BINDIR@)
-
 lib/edit-broker-client.sh: lib/edit-broker-client.sh.in Makefile $(EDIT_BROKER_CONTRACTS_ENV)
   sed \
     $(call _sed_entry,MAGIC,$(BROKER_CONTRACT_MAGIC)) \
@@ -252,30 +246,30 @@ lib/edit-broker-client.sh: lib/edit-broker-client.sh.in Makefile $(EDIT_BROKER_C
     $< > $@
   $(call _verify_no_unsubst,$@,@MAGIC@|@EDIT_BROKER_USER@|@MAX_BROKER_BYTES@|@BROKER_RESPONSE_TIMEOUT_S@)
 
-# Bakes SHIM_PATH, broker paths, UTILS_METADATA, VERSION, etc. Remaining @...@ in
-# the output fails the grep below.
+# Bakes SHIM_PATH, broker paths, VERSION, etc. Remaining @...@ in the output
+# fails the grep below.
 #
 # Makefile is a prerequisite so SHIM_PATH (and other make-vars) edits rebuild
 # the binary; otherwise the target timestamp can look fresh while baked paths rot.
 #
-# edit-mode.sh trailing newline is load-bearing: sed `r` reads the file as-is, so
-# a missing final \n would concatenate its last line with the line of
-# doasudo.in following the marker. Fail loudly if absent.
+# edit-mode.sh and lib/shim-utils.sh trailing newlines are load-bearing: sed `r`
+# reads each file as-is, so a missing final \n would concatenate its last line
+# with the doasudo.in line following the marker. Fail loudly if absent.
 doasudo: doasudo.in VERSION Makefile lib/shim-utils.sh $(EDIT_BROKER_DEPS) $(EDIT_MODE_SRC)
   $(_write_broker_metadata) && \
   sed \
     $(_sed_entry_edit_mode) \
     $(_sed_entry_broker_metadata) \
+    $(_sed_entry_shim_utils) \
     $(call _sed_entry,BINDIR,$(SHIM_PATH)) \
-    $(call _sed_entry,UTILS_METADATA,$(UTILS_METADATA)) \
     $(call _sed_entry,VERSION,$(VERSION)) \
-    $(call _sed_entry,SHIM_UTILS,$(SHIM_UTILS)) \
     $< > $@
-  $(call _verify_no_unsubst,$@,@BINDIR@|@UTILS_METADATA@|@VERSION@|@SHIM_UTILS@|@EDIT_BROKER_METADATA@|@EDIT_MODE_BLOCK@)
+  $(call _verify_no_unsubst,$@,@BINDIR@|@VERSION@|@EDIT_BROKER_METADATA@|@EDIT_MODE_BLOCK@|@SHIM_UTILS_BLOCK@)
 
 # Edit broker: sed same @...@ tokens as the shim (@BINDIR@ = SHIM_PATH).
 broker/edit-broker.sh: broker/edit-broker.sh.in Makefile $(EDIT_BROKER_CONTRACTS_ENV) lib/shim-utils.sh broker/allowlist-parse.awk
   sed \
+    $(_sed_entry_shim_utils) \
     $(call _sed_entry,EDIT_BROKER_STAGING_DIR,$(EDIT_BROKER_STAGING_DIR)) \
     $(call _sed_entry,ALLOWLIST_PATH,$(BROKER_ALLOWLIST_PATH)) \
     $(call _sed_entry,EDIT_BROKER_TTY,$(EDIT_BROKER_TTY)) \
@@ -285,8 +279,6 @@ broker/edit-broker.sh: broker/edit-broker.sh.in Makefile $(EDIT_BROKER_CONTRACTS
     $(call _sed_entry,ALLOWLIST_PARSER,$(BROKER_ALLOWLIST_PARSER)) \
     $(call _sed_entry,BROKER_CONFIG_DIR,$(BROKER_CONFIG_DIR)) \
     $(call _sed_entry,BROKER_CONFIG_VIMRC_METADATA,$(BROKER_CONFIG_VIMRC_METADATA)) \
-    $(call _sed_entry,SHIM_UTILS,$(SHIM_UTILS)) \
-    $(call _sed_entry,UTILS_METADATA,$(UTILS_METADATA)) \
     broker/edit-broker.sh.in > "$@"
   chmod 755 "$@"
   $(call _verify_no_unsubst,$@,$(BROKER_SUBST_CHECK_ERE))
@@ -294,9 +286,10 @@ broker/edit-broker.sh: broker/edit-broker.sh.in Makefile $(EDIT_BROKER_CONTRACTS
 # Ad hoc broker path: broker/build-to BROKER_BUILD_TO=/tmp/b.sh plus overrides
 # (EDIT_BROKER_STAGING_DIR, BROKER_ALLOWLIST_PATH, ...). MAGIC/limits from Makefile.
 .PHONY: broker/build-to
-broker/build-to: broker/edit-broker.sh.in Makefile
+broker/build-to: broker/edit-broker.sh.in Makefile lib/shim-utils.sh
   @test -n "$(BROKER_BUILD_TO)" || { printf 'error: BROKER_BUILD_TO required\n' >&2; exit 1; }
   sed \
+    $(_sed_entry_shim_utils) \
     $(call _sed_entry,EDIT_BROKER_STAGING_DIR,$(EDIT_BROKER_STAGING_DIR)) \
     $(call _sed_entry,ALLOWLIST_PATH,$(BROKER_ALLOWLIST_PATH)) \
     $(call _sed_entry,EDIT_BROKER_TTY,$(EDIT_BROKER_TTY)) \
@@ -306,8 +299,6 @@ broker/build-to: broker/edit-broker.sh.in Makefile
     $(call _sed_entry,ALLOWLIST_PARSER,$(BROKER_ALLOWLIST_PARSER)) \
     $(call _sed_entry,BROKER_CONFIG_DIR,$(BROKER_CONFIG_DIR)) \
     $(call _sed_entry,BROKER_CONFIG_VIMRC_METADATA,$(BROKER_CONFIG_VIMRC_METADATA)) \
-    $(call _sed_entry,SHIM_UTILS,$(SHIM_UTILS)) \
-    $(call _sed_entry,UTILS_METADATA,$(UTILS_METADATA)) \
     broker/edit-broker.sh.in > "$(BROKER_BUILD_TO)"
   chmod 755 "$(BROKER_BUILD_TO)"
   $(call _verify_no_unsubst,$(BROKER_BUILD_TO),$(BROKER_SUBST_CHECK_ERE))
@@ -329,7 +320,6 @@ install: doasudo $(INSTALL_BROKER)
   @( PATH="$(SHIM_PATH)"; command -v doas >/dev/null 2>&1 ) \
     || printf 'warning: doas not found in SHIM_PATH=%s\n' "$(SHIM_PATH)" >&2
   $(INSTALL) -d $(DESTDIR)$(SHIM_LIBEXEC_DIR)
-  $(INSTALL) -m 644 lib/shim-utils.sh $(DESTDIR)$(SHIM_UTILS)
 ifeq ($(EDIT_MODE),1)
   $(INSTALL) -m 644 lib/edit-broker-client.sh $(DESTDIR)$(EDIT_BROKER_CLIENT)
 endif
@@ -429,8 +419,7 @@ check-broker-e2e:
 
 # Tests on .in and generated libs (no doasudo binary build first).
 # Order: shim core (flags/parser/edit-mode), broker-contracts + allowlist + vim-profile,
-# broker-integration (EDITBROKER matrix), broker test-driver, then stale-metadata
-# last (removes doasudo after repair check).
+# broker-integration (EDITBROKER matrix), then broker test-driver.
 CORE_TESTS = \
   DOASUDO_TEST_EDIT_MODE=$(EDIT_MODE) sh tests/parser_test.sh doasudo.in && \
   sh tests/edit-mode-disabled_test.sh doasudo.in
@@ -453,10 +442,9 @@ ifeq ($(EDIT_MODE),1)
   $(EDIT_TESTS)
   $(BROKER_TESTS)
 endif
-  sh tests/stale-metadata_test.sh
 
-# check-src runs tests that rebuild lib/shim-utils.sh with a mock SHIM_PATH; release
-# shim must bake UTILS_METADATA from the tree-default lib. Rebuild lib + shim after tests.
+# check-src runs tests that rebuild lib/shim-utils.sh with a mock SHIM_PATH; the
+# release shim embeds the tree-default lib, so rebuild lib + shim after tests.
 # Suite still runs on doasudo.in (not the binary) for flag/parser/edit cases.
 # MAKE_VERBOSITY: matches tests/testlib.sh _make_s; silent unless VERBOSE=1.
 MAKE_VERBOSITY = $(if $(filter 1,$(VERBOSE)),,-s)
@@ -504,7 +492,6 @@ shellcheck: broker/edit-broker.sh lib/shim-utils.sh lib/edit-broker-client.sh do
   shellcheck -s sh -x tests/parser_test.sh
   shellcheck -s sh -x tests/edit-mode-disabled_test.sh
   shellcheck -s sh -x tests/edit-mode-parser_test.sh
-  shellcheck -s sh tests/stale-metadata_test.sh
   cd "$(CURDIR)/broker" && shellcheck -s sh -x edit-broker.sh
   shellcheck -s sh -x broker/tests/test-driver.sh
   shellcheck -s sh -x broker/tests/test-stub-editor.sh
@@ -541,7 +528,7 @@ uninstall:
   rm -f $(DESTDIR)$(PREFIX)/share/doasudo/post-install.sh
   @rmdir "$(DESTDIR)$(PREFIX)/share/doasudo" 2>/dev/null || true
   @rmdir "$(DESTDIR)$(DOAS_SNIPPET_DIR)" 2>/dev/null || true
-  rm -f $(DESTDIR)$(SHIM_UTILS) $(DESTDIR)$(EDIT_BROKER_CLIENT)
+  rm -f $(DESTDIR)$(EDIT_BROKER_CLIENT)
   @rmdir "$(DESTDIR)$(SHIM_LIBEXEC_DIR)" 2>/dev/null || true
   @rmdir "$(DESTDIR)$(dir $(SHIM_LIBEXEC_DIR))" 2>/dev/null || true
   @rmdir "$(DESTDIR)$(BINDIR)" 2>/dev/null || true

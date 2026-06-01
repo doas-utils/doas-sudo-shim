@@ -10,7 +10,7 @@ doas -u <editbroker_user> -- <path-to-broker>
 
 The shim sends the request on `stdin`. The broker sends the response on `stdout`. `stderr` carries diagnostics only.
 
-The file `config/edit-broker-contracts.env` holds all shared constants. The test `broker/tests/broker-contracts_test.sh` checks them. The shim and the broker both source `shim-utils.sh` (installed under `libexec/doasudo/`). Checksum tool paths do not go on the wire.
+The file `config/edit-broker-contracts.env` holds all shared constants. The test `broker/tests/broker-contracts_test.sh` checks them. The shim and the broker each embed `shim-utils.sh` at build time. Checksum tool paths do not go on the wire.
 
 The shim sources `lib/edit-broker-client.sh` in broker mode only. The broker does not load that file.
 
@@ -30,19 +30,18 @@ Headers are ASCII lines that end with `\n`. Bodies are raw bytes of exact declar
 
 ## Request (shim → broker)
 
-The request has exactly *five* header lines, then `REQ_LEN` body bytes.
+The request has exactly *four* header lines, then `REQ_LEN` body bytes.
 
 The boundary between headers and body is the *line count*, not the content. The body can start with bytes that look like a header (for example `MAGIC=`).
 
-The five lines must appear in this order:
+The four lines must appear in this order:
 
 | Order | Line | Description |
 |------:|------|-------------|
 | 1 | `MAGIC=EDITBROKER/1` | Protocol version. Must match exactly. |
-| 2 | `UTILS_METADATA=<sha256hex>:<uid>:<gid>:<mode>` | Integrity string for `shim-utils.sh`. Must match the broker's baked value. |
-| 3 | `EDITOR=<absolute-path>` | Absolute path to the editor. The shim resolves this path. The broker matches it against an allowlist. |
-| 4 | `PRE_DIGEST=<64hex\|-`>` | SHA-256 hex digest of the staged input, or `-` if the digest is not available. The sender must send a bare 64-character hex token (no filename suffix). |
-| 5 | `REQ_LEN=<decimal>` | Byte length of the body that follows. |
+| 2 | `EDITOR=<absolute-path>` | Absolute path to the editor. The shim resolves this path. The broker matches it against an allowlist. |
+| 3 | `PRE_DIGEST=<64hex\|-`>` | SHA-256 hex digest of the staged input, or `-` if the digest is not available. The sender must send a bare 64-character hex token (no filename suffix). |
+| 4 | `REQ_LEN=<decimal>` | Byte length of the body that follows. |
 | — | *body* | Exactly `REQ_LEN` bytes. Can contain NULs. |
 
 ---
@@ -76,7 +75,7 @@ When `POST_DIGEST=-`, the shim warns and skips the privileged write-back for tha
 
 ## Framing rules
 
-The header length is fixed: five lines for the request, three lines for a success response. The body length comes from the declared length field only.
+The header length is fixed: four lines for the request, three lines for a success response. The body length comes from the declared length field only.
 
 All fields must appear once, in the specified order. A duplicate, missing, or reordered field is a protocol error.
 
@@ -116,16 +115,6 @@ The shim checks the installed `lib/edit-broker-client.sh` against the baked `EDI
 
 ---
 
-## Shared utils integrity
-
-The shim and the broker both check the installed `shim-utils.sh` against the baked `UTILS_METADATA` string (`<sha256hex>:0:0:<mode>`). The Makefile computes the digest from `lib/shim-utils.sh` in the build tree. The mode matches `install -m` (typically `644`).
-
-The request wire carries the same string as `UTILS_METADATA=`. The broker compares it to its own baked value.
-
-See `packaging/README.md` for build knobs.
-
----
-
 ## Fail-closed default
 
 When `SUDO_SHIM_EDIT_BROKER=1`, any broker, `doas`, or protocol failure is fatal for that invocation. Set `SUDO_SHIM_EDIT_BROKER=0` (default) to use the direct editor path.
@@ -139,10 +128,10 @@ When `SUDO_SHIM_EDIT_BROKER=1`, any broker, `doas`, or protocol failure is fatal
 | `doasudo.in` | Shim: builds request, parses response, enforces timeout and metadata. |
 | `lib/edit-broker-client.sh.in` | Client helpers for broker mode. Bakes `EDIT_BROKER_USER`, `MAGIC`, `MAX_BROKER_BYTES`, `BROKER_RESPONSE_TIMEOUT_S`. |
 | `lib/shim-utils.sh.in` | Shared helpers: binary resolution, checksum, stat, metadata checks, byte I/O. |
-| `broker/edit-broker.sh.in` | Broker source. Bakes staging dir, allowlist path, parser path, TTY path, `SHIM_PATH`, utils metadata, contract constants. |
+| `broker/edit-broker.sh.in` | Broker source. Bakes staging dir, allowlist path, parser path, TTY path, `SHIM_PATH`, contract constants; embeds `shim-utils.sh`. |
 | `broker/tests/fixtures/ipc/` | Golden header files for drift checks. |
 | `broker/tests/broker-contracts_test.sh` | Checks constants against fixtures and this spec. |
-| `broker/tests/broker-integration_test.sh` | Shim baked with `SUDO_SHIM_EDIT_BROKER` + mock EDITBROKER IPC (protocol + metadata). |
+| `broker/tests/broker-integration_test.sh` | Shim baked with `SUDO_SHIM_EDIT_BROKER` + mock EDITBROKER IPC (protocol). |
 
 ---
 

@@ -336,8 +336,8 @@ _check_metadata_state() {
 
 _run_edit_mode() {
   _edit_cmd=${0##*/}
-# Rejects -i and -s only when real edit mode is active.
-# (_edit_cmd is a diagnostic label, not a proxy for flag_e.)
+  # Rejects -i and -s only when real edit mode is active.
+  # (_edit_cmd is a diagnostic label, not a proxy for flag_e.)
   [ -z "${flag_i:-}" ] || edit_mode_die "-i/--login is not valid in edit mode"
   [ -z "${flag_s:-}" ] || edit_mode_die "-s/--shell is not valid in edit mode"
   [ -z "${flag_H:-}" ] || edit_mode_die "-H/--set-home is not valid in edit mode"
@@ -350,7 +350,7 @@ _run_edit_mode() {
   # a trojan at exec time. A poisoned stat could supply an attacker-chosen
   # mode directly to a privileged chmod.
 
-  # dd, rm, mktemp, awk, wc: same resolution as the edit broker (shim-utils.sh).
+  _init_stat_and_shasum
   _resolve_edit_mode_tools || edit_mode_die 'shared utils missing from SHIM_PATH (dd, rm, mktemp, wc, cat)'
 
   # Edit-mode only (not used by the broker).
@@ -984,8 +984,8 @@ _run_edit_mode() {
       _check_path "$_f"
       exec 5>&-
     ' _ \
-    "$_MV" "$_RM" "$_CAT" "$_STAT" "$_CHMOD" "$_CHOWN" "$_CKSUM" \
-    "${_CKSUM_FLAG:-}" "$_STAT_FLAG" "$_STAT_FD_FMT" \
+    "$_MV" "$_RM" "$_CAT" "$_STAT" "$_CHMOD" "$_CHOWN" "$_SHASUM" \
+    "${_SHASUM_FLAG:-}" "$_STAT_FLAG" "$_STAT_FD_FMT" \
     "$_digest_post_editor" \
     "$_orig_owner_group" \
     "$_orig_mode" \

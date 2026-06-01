@@ -2,14 +2,13 @@
 # shellcheck disable=SC1007,SC2015
 set -eu
 
-# Same tool selection as shim (EDITBROKER/1: UTILS_METADATA + PRE_DIGEST; checksum not on wire).
+# Same tool selection as shim (EDITBROKER/1: PRE_DIGEST; checksum not on wire).
 _sha='@MOCKBIN_SHA@'
 _sha_flag='@SHA_FLAG@'
 
 # Contract constants are baked at template-instantiation time by the harness so
 # the mock cannot drift from the shim's view of MAGIC.
 MAGIC='@MAGIC@'
-_expected_utils_meta='@UTILS_METADATA@'
 
 # sha256sum/shasum print hex plus noise; wire expects bare 64-hex token.
 _extract_hex() {
@@ -19,10 +18,6 @@ _extract_hex() {
 _line=
 IFS= read -r _line || { printf 'RESP_CODE=1\n'; exit 0; }
 [ "$_line" = "MAGIC=$MAGIC" ] || { printf 'RESP_CODE=1\n'; exit 0; }
-
-IFS= read -r _line || { printf 'RESP_CODE=1\n'; exit 0; }
-case "$_line" in UTILS_METADATA=*) _um="${_line#UTILS_METADATA=}" ;; *) printf 'RESP_CODE=1\n'; exit 0 ;; esac
-[ "$_um" = "$_expected_utils_meta" ] || { printf 'RESP_CODE=1\n'; exit 0; }
 
 IFS= read -r _line || { printf 'RESP_CODE=1\n'; exit 0; }
 case "$_line" in EDITOR=*) _edw="${_line#EDITOR=}" ;; *) printf 'RESP_CODE=1\n'; exit 0 ;; esac

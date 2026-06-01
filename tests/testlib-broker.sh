@@ -68,11 +68,11 @@ _broker_make_temp() {
 
 # $1=output path $2=edit-broker path $3=EDIT_BROKER_METADATA value
 # Requires: _build_test_shim (testlib.sh); _repo _shim_src _mockbin _sys_path
-# _utils_metadata _version _eb_client _eb_client_meta (harness fills before call).
+# _version _eb_client _eb_client_meta (harness fills before call).
 # shellcheck disable=SC2154 # globals set by sourcing harness before call
 _build_edit_test_shim() {
   _build_test_shim "$_repo" "$_shim_src" "$1" "${_mockbin}:${_sys_path}" \
-    "${_utils_metadata}" "${_version}" "${_repo}/lib/shim-utils.sh" \
+    "${_version}" "${_repo}/lib/shim-utils.sh" \
     "${_eb_client}" "${_eb_client_meta}" \
     "$2" "$3" \
     --stub-edit-mode-root-guard \

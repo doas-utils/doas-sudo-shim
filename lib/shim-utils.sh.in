@@ -1,15 +1,6 @@
-# SPDX-License-Identifier: MIT
-# See LICENSE.md. Part of doas-utils/doasudo.
-#
-# Shared helpers and baked PATH resolution. The broker reuses this file so
-# checksum tools and core utilities match the shim's.
-#
-# Installed as $(PREFIX)/libexec/doasudo/shim-utils.sh
-# Sourced by doasudo and the edit-broker.
+# ---- Shared shim helpers -----------------------------------------------------------------
+# Embedded into doasudo at build time
 
-# shellcheck shell=sh
-
-# Baked colon-separated dirs (Makefile SHIM_PATH); same token as @BINDIR@ in .in sources.
 _SUDO_SHIM_PATH='@BINDIR@'
 
 _resolve_bin() {
@@ -65,6 +56,7 @@ _is_decimal() {
 }
 
 # Non-empty ASCII octal digit string (e.g. stat mode from %a / %Lp, baked metadata mode).
+# shellcheck disable=SC2317
 _is_octal() {
   case "$1" in
     ''|*[!0-7]*) return 1 ;;
@@ -78,6 +70,7 @@ _check_digest() {
 }
 
 # Baked install metadata from Makefile/stat: <sha256hex>:<uid>:<gid>:<mode>.
+# shellcheck disable=SC2317
 _check_meta_str() {
   _cms_head=${1%:*:*:*}
   [ "$1" != "$_cms_head" ] && _is_hex64 "$_cms_head" || return 1
@@ -131,45 +124,50 @@ _stat_probe() {
 }
 
 # Returns the device:inode of $1.
+# shellcheck disable=SC2317
 _get_dev_inode() { "$_STAT" "$_STAT_FLAG" '%d:%i' "$1" 2>/dev/null; }
 
 # Returns the device:inode:ctime:mtime:mode tuple of $1 (directory snapshot).
+# shellcheck disable=SC2317
 _get_dir_meta() { "$_STAT" "$_STAT_FLAG" "$_STAT_DIR_FMT" "$1" 2>/dev/null; }
 
 # Same as _get_inode but follows symlinks (-L). GNU /dev/fd/N is a symlink;
 # without -L, stat(1) reports the fd link inode, not the open file description.
+# shellcheck disable=SC2317
 _get_fd_inode() { "$_STAT" -L "$_STAT_FLAG" "$_STAT_FD_FMT" "$1" 2>/dev/null || printf '%s' '-'; }
 
 # Returns the mtime of $1 as a decimal integer, or '-' on failure.
 # The '-' sentinel causes callers to treat the file as always modified.
+# shellcheck disable=SC2317
 _get_mtime() { "$_STAT" "$_STAT_FLAG" "$_STAT_MTIME_FMT" "$1" 2>/dev/null || printf '%s' '-'; }
 
 # Returns byte size of $1 as a decimal integer, or '-' on stat failure.
 # '-' means unknown size. Callers must reject or abort.
+# shellcheck disable=SC2317
 _get_size() { "$_STAT" "$_STAT_FLAG" "$_STAT_SIZE_FMT" "$1" 2>/dev/null || printf '%s' '-'; }
 
 # uid:gid:mode metadata for file $1.
 _get_ugm() { "$_STAT" "$_STAT_FLAG" "$_STAT_UGM_FMT" "$1" 2>/dev/null; }
 
-# Resolve SHA-256 tool -> _CKSUM, _CKSUM_FLAG (same selection everywhere).
-_cksum_init() {
-  _CKSUM=; _CKSUM_FLAG=
+# Resolve SHA-256 tool -> _SHASUM, _SHASUM_FLAG (same selection everywhere).
+_resolve_shasum() {
+  _SHASUM=; _SHASUM_FLAG=
   for _bin in sha256sum sha256 shasum; do
-    _CKSUM=$(_resolve_bin "$_bin" optional)
-    [ -n "$_CKSUM" ] || continue
-    [ "$_bin" = shasum ] && _CKSUM_FLAG='-a 256'
+    _SHASUM=$(_resolve_bin "$_bin" optional)
+    [ -n "$_SHASUM" ] || continue
+    [ "$_bin" = shasum ] && _SHASUM_FLAG='-a 256'
     break
   done
-  [ -n "$_CKSUM" ] || return 1
+  [ -n "$_SHASUM" ] || return 1
   return 0
 }
 
-# SHA-256 checksum of file $1. Empty $_CKSUM_FLAG expands to no extra words.
+# SHA-256 checksum of file $1. Empty $_SHASUM_FLAG expands to no extra words.
 # shellcheck disable=SC2086
-_digest() { "$_CKSUM" $_CKSUM_FLAG <"$1" 2>/dev/null; }
+_digest() { "$_SHASUM" $_SHASUM_FLAG <"$1" 2>/dev/null; }
 
 # First 64-hex SHA-256 token for file $1 (broker PRE/POST digest, install metadata).
-# Requires _cksum_init.
+# Requires _resolve_shasum.
 _digest_hex64() {
   _dg_raw=$(_digest "$1") || return 1
   _first_hex64 "$_dg_raw" || return 1
@@ -252,21 +250,16 @@ _write_exact() {
   fi
 }
 
-# Startup after source: _stat_probe, _cksum_init, then validate _SHIM_UTILS_PATH
-# (_is_abs_path, _check_meta_str, _check_file_meta). Caller supplies fatal and
-# metadata; failures call fatal.
-_init() {
-  _stat_rc=0
-  _stat_probe || _stat_rc=$?
-  case "$_stat_rc" in
+# Probe stat(1) and a SHA-256 tool; fatal on failure. Edit mode and the broker
+# call this before any _get_*/_digest* use. Plain 'sudo CMD' never calls it, so
+# the probes stay off the non-edit path. Each caller defines fatal.
+_init_stat_and_shasum() {
+  _rsc_rc=0
+  _stat_probe || _rsc_rc=$?
+  case "$_rsc_rc" in
     0) ;;
     2) fatal 'stat not found in SHIM_PATH' ;;
-    *) fatal "stat(1) supports neither GNU (-c) nor BSD (-f) format; cannot continue" ;;
+    *) fatal 'stat(1) supports neither GNU (-c) nor BSD (-f) format; cannot continue' ;;
   esac
-  _cksum_init || fatal "no SHA-256 checksum tool in SHIM_PATH (need sha256sum, sha256, or shasum)"
-  _is_abs_path "$_SHIM_UTILS_PATH" || fatal "shim utils path must be absolute: '$_SHIM_UTILS_PATH'"
-  _check_meta_str "$_SHIM_UTILS_METADATA" || fatal "shim utils metadata unset or invalid (expected '<sha256hex>:<uid>:<gid>:<mode>')"
-  _check_file_meta "$_SHIM_UTILS_PATH" "$_SHIM_UTILS_METADATA" || fatal 'shim utils metadata mismatch'
+  _resolve_shasum || fatal 'no SHA-256 checksum tool in SHIM_PATH (need sha256sum, sha256, or shasum)'
 }
-
-_init

@@ -12,7 +12,6 @@ _out=
 _bindir=
 _edit_broker_path=
 _edit_broker_metadata=
-_utils_metadata=
 _version=
 _shim_utils=
 _edit_broker_client=
@@ -30,7 +29,6 @@ while [ "$#" -gt 0 ]; do
     --bindir) _bindir="${2:-}"; shift 2 ;;
     --edit-broker-path) _edit_broker_path="${2:-}"; shift 2 ;;
     --edit-broker-metadata) _edit_broker_metadata="${2:-}"; shift 2 ;;
-    --utils-metadata) _utils_metadata="${2:-}"; shift 2 ;;
     --version) _version="${2:-}"; shift 2 ;;
     --shim-utils) _shim_utils="${2:-}"; shift 2 ;;
     --edit-broker-client) _edit_broker_client="${2:-}"; shift 2 ;;
@@ -51,7 +49,6 @@ _miss=
 [ -n "$_in" ] || _miss=input
 [ -n "$_out" ] || _miss=output
 [ -n "$_bindir" ] || _miss=bindir
-[ -n "$_utils_metadata" ] || _miss=utils-metadata
 [ -n "$_version" ] || _miss=version
 [ -n "$_shim_utils" ] || _miss=shim-utils
 if [ "$_no_edit_mode" -eq 0 ]; then
@@ -74,6 +71,8 @@ fi
   exit 1
 }
 [ -f "$_in" ] || { printf 'error: input not found: %s\n' "$_in" >&2; exit 1; }
+# --shim-utils is now the r-embed source (a rendered shim-utils.sh), not a path string.
+[ -f "$_shim_utils" ] || { printf 'error: shim-utils not found: %s\n' "$_shim_utils" >&2; exit 1; }
 if [ "$_no_edit_mode" -eq 0 ]; then
   [ -f "$_edit_mode" ] || { printf 'error: edit-mode not found: %s\n' "$_edit_mode" >&2; exit 1; }
 fi
@@ -87,6 +86,12 @@ _marker_count=$(grep -c '^# @EDIT_BROKER_METADATA@$' "$_in" || true)
 _include_marker_count=$(grep -c '^# @EDIT_MODE_BLOCK@$' "$_in" || true)
 [ "$_include_marker_count" -eq 1 ] || {
   printf 'error: expected exactly one # @EDIT_MODE_BLOCK@ marker in %s\n' "$_in" >&2
+  exit 1
+}
+
+_shim_utils_marker_count=$(grep -c '^# @SHIM_UTILS_BLOCK@$' "$_in" || true)
+[ "$_shim_utils_marker_count" -eq 1 ] || {
+  printf 'error: expected exactly one # @SHIM_UTILS_BLOCK@ marker in %s\n' "$_in" >&2
   exit 1
 }
 
@@ -132,10 +137,12 @@ fi
 if [ "$_no_edit_mode" -eq 1 ]; then
   set -- \
     -e '/^# @EDIT_MODE_BLOCK@$/d' \
+    -e '/^# @SHIM_UTILS_BLOCK@$/{' \
+    -e "  r ${_shim_utils}" \
+    -e '  d' \
+    -e '}' \
     -e "s${_sep}@BINDIR@${_sep}${_bindir}${_sep}" \
-    -e "s${_sep}@UTILS_METADATA@${_sep}${_utils_metadata}${_sep}" \
     -e "s${_sep}@VERSION@${_sep}${_version}${_sep}" \
-    -e "s${_sep}@SHIM_UTILS@${_sep}${_shim_utils}${_sep}" \
     -e '/^# @EDIT_BROKER_METADATA@$/d'
 else
   set -- \
@@ -143,10 +150,12 @@ else
     -e "  r ${_edit_mode_processed}" \
     -e '  d' \
     -e '}' \
+    -e '/^# @SHIM_UTILS_BLOCK@$/{' \
+    -e "  r ${_shim_utils}" \
+    -e '  d' \
+    -e '}' \
     -e "s${_sep}@BINDIR@${_sep}${_bindir}${_sep}" \
-    -e "s${_sep}@UTILS_METADATA@${_sep}${_utils_metadata}${_sep}" \
     -e "s${_sep}@VERSION@${_sep}${_version}${_sep}" \
-    -e "s${_sep}@SHIM_UTILS@${_sep}${_shim_utils}${_sep}" \
     -e '/^# @EDIT_BROKER_METADATA@$/{' \
     -e "  r ${_vars_file}" \
     -e '  d' \
@@ -165,6 +174,11 @@ if grep -q '@EDIT_BROKER_METADATA@' "$_out"; then
   exit 1
 fi
 if grep -q '@EDIT_MODE_BLOCK@' "$_out"; then
+  printf 'error: marker substitution failed in %s\n' "$_out" >&2
+  rm -f "$_out"
+  exit 1
+fi
+if grep -q '@SHIM_UTILS_BLOCK@' "$_out"; then
   printf 'error: marker substitution failed in %s\n' "$_out" >&2
   rm -f "$_out"
   exit 1

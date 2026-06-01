@@ -48,7 +48,7 @@ EOF
 
 # ---- Shared globals (initialized by _parser_setup) ---------------------
 #
-# _repo, _tmp, _mockbin, _sys_path, _version, _utils_meta,
+# _repo, _tmp, _mockbin, _sys_path, _version,
 # _eb_client_meta, _shim_utils_src, _bindir_std, _sep, _edit_dummy,
 # _editfile, _built, _shim_src, _shim, _record, _parser_edit_mode
 
@@ -174,10 +174,6 @@ EOF
   (cd "$_repo" && "$MAKE" $(_make_s) lib/shim-utils.sh SHIM_PATH="${_mockbin}:${_sys_path}") \
     || { printf 'error: make lib/shim-utils.sh failed\n' >&2; exit 1; }
 
-  _utils_meta=$(_compute_metadata "$_repo/lib/shim-utils.sh" 644 stat-ug) || {
-    printf 'error: could not compute UTILS_METADATA for lib/shim-utils.sh\n' >&2
-    exit 1
-  }
   _eb_client_meta=
   if [ "$_parser_edit_mode" -eq 1 ]; then
     _eb_client_meta=$(_compute_metadata "$_repo/lib/edit-broker-client.sh" 644 stat-ug) || {
@@ -199,44 +195,35 @@ EOF
     _shim_rel=
     _relcwd=
   else
-    _parser_build_shim "$_shim" "$_bindir_std" "$_utils_meta" "$_shim_utils_src"
+    _parser_build_shim "$_shim" "$_bindir_std" "$_shim_utils_src"
 
     sed -e "s${_sep}@BINDIR@${_sep}${_mockbin}${_sep}" "$_repo/lib/shim-utils.sh.in" > "$_tmp/shim-utils.min.sh"
-    _utils_meta_min=$(_compute_metadata "$_tmp/shim-utils.min.sh" 644 stat-ug) || {
-      printf 'error: could not compute UTILS_METADATA for shim-utils.min.sh\n' >&2
-      exit 1
-    }
     _shim_min="${_tmp}/sudo_min"
-    _parser_build_shim "$_shim_min" "${_mockbin}" "$_utils_meta_min" "${_tmp}/shim-utils.min.sh"
+    _parser_build_shim "$_shim_min" "${_mockbin}" "${_tmp}/shim-utils.min.sh"
 
     _relcwd="${_tmp}/relcwd"
     mkdir -p "$_relcwd"
     ln -sf "${_mockbin}/doas" "${_relcwd}/doas"
     _bindir_rel=".:${_mockbin}:${_sys_path}"
     sed -e "s${_sep}@BINDIR@${_sep}${_bindir_rel}${_sep}" "$_repo/lib/shim-utils.sh.in" > "$_tmp/shim-utils.rel.sh"
-    _utils_meta_rel=$(_compute_metadata "$_tmp/shim-utils.rel.sh" 644 stat-ug) || {
-      printf 'error: could not compute UTILS_METADATA for shim-utils.rel.sh\n' >&2
-      exit 1
-    }
     _shim_rel="${_tmp}/sudo_rel"
-    _parser_build_shim "$_shim_rel" "$_bindir_rel" "$_utils_meta_rel" "${_tmp}/shim-utils.rel.sh"
+    _parser_build_shim "$_shim_rel" "$_bindir_rel" "${_tmp}/shim-utils.rel.sh"
   fi
 }
 
-# $1=out $2=bindir $3=UTILS_METADATA $4=path/to/shim-utils.sh; rest -> build-test-shim.
+# $1=out $2=bindir $3=path/to/shim-utils.sh; rest -> build-test-shim.
 _parser_build_shim() {
   _pbs_out="$1"
   _pbs_bindir="$2"
-  _pbs_um="$3"
-  _pbs_su="$4"
-  shift 4
+  _pbs_su="$3"
+  shift 3
   if [ "$_parser_edit_mode" -eq 1 ]; then
-    _build_test_shim "$_repo" "$_shim_src" "$_pbs_out" "$_pbs_bindir" "$_pbs_um" \
+    _build_test_shim "$_repo" "$_shim_src" "$_pbs_out" "$_pbs_bindir" \
       "$_version" "$_pbs_su" "${_repo}/lib/edit-broker-client.sh" "$_eb_client_meta" \
       "${_mockbin}/edit-broker" "${_eb_broker_meta}" \
       "$@" || return
   else
-    _build_disabled_test_shim "$_repo" "$_shim_src" "$_pbs_out" "$_pbs_bindir" "$_pbs_um" \
+    _build_disabled_test_shim "$_repo" "$_shim_src" "$_pbs_out" "$_pbs_bindir" \
       "$_version" "$_pbs_su" "$@" || return
   fi
   chmod +x "$_pbs_out"

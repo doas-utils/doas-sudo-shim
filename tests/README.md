@@ -2,7 +2,7 @@
 
 `make check-src` validates core logic and is the primary regression path. Run it during development for fast feedback via a mock `doas` harness (no root or passwords required).
 
-`make check` (or `make`) extends `check-src` by post-validating the metadata of the `lib/shim-utils.sh` library against the compiled shim. `make shellcheck` provides static analysis.
+`make check` (or `make`) extends `check-src` by rebuilding `lib/shim-utils.sh` and the shim, restoring the release tree after tests that render the library with a mock `SHIM_PATH`. `make shellcheck` provides static analysis.
 
 Mock `PATH` fixtures for `tests/edit-mode_test.sh` and `broker/tests/broker-integration_test.sh` share `tests/mock-edit-mode.sh` (`_MOCKBIN_EDIT_SUITE=full` vs `broker`).
 
@@ -10,7 +10,7 @@ Use local integration tests (Docker/E2E) when modifying installation paths, dist
 
 ## Core Tests (`make check-src`)
 
-The suite runs the scripts listed below in sequence. The `broker/tests/test-driver.sh` script executes only with root or passwordless `doas` access; otherwise, it is skipped. Each run finishes by recreating the `_SHIM_UTILS_METADATA` file and clearing temporary binaries.
+The suite runs the scripts listed below in sequence. The `broker/tests/test-driver.sh` script executes only with root or passwordless `doas` access; otherwise, it is skipped. Each run finishes by recreating `lib/shim-utils.sh` and clearing temporary binaries.
 
 To troubleshoot or view full output, prepend `VERBOSE=1`:
 
@@ -27,9 +27,8 @@ VERBOSE=1 sh tests/parser_test.sh
 - `broker/tests/broker-contracts_test.sh`: Verifies the shim-broker IPC interface for consistency.
 - `broker/tests/allowlist-parse_test.sh`: Tests the allowlist parser against golden fixtures.
 - `broker/tests/vim-profile_test.sh`: Verifies vim features, and vim config hardening.
-- `broker/tests/broker-integration_test.sh`: Shim baked with `SUDO_SHIM_EDIT_BROKER` and mock EDITBROKER responder (protocol + metadata edge cases).
+- `broker/tests/broker-integration_test.sh`: Shim baked with `SUDO_SHIM_EDIT_BROKER` and mock EDITBROKER responder (protocol edge cases).
 - `broker/tests/test-driver.sh`: Exercises the broker binary request/response harness and per-TTY session locks.
-- `tests/stale-metadata_test.sh`: Simulates stale shim compilation to verify the auto-repair process.
 
 ### Write-back and Broker Isolation
 
@@ -46,7 +45,7 @@ make check-broker-contracts
 
 ## Full Validation (`make` or `make check`)
 
-*Run `make` as a standard user before any installation.* The default `check` target executes `check-src` and verifies that the `lib/shim-utils.sh` metadata matches the compiled binary. This check confirms the shim can identify and load its internal library at runtime.
+*Run `make` as a standard user before any installation.* The default `check` target executes `check-src`, then rebuilds `lib/shim-utils.sh` and the shim so the working tree is left in a release state (the core suite renders the library with a mock `SHIM_PATH`).
 
 The `native-check` CI job uses this target to ensure the full suite passes across Linux and macOS environments.
 

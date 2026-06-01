@@ -42,7 +42,6 @@ _build_test_shim() {
   _in=$1;   shift
   _out=$1;  shift
   _bd=$1;   shift
-  _um=$1;   shift
   _ver=$1;  shift
   _su=$1;   shift
   _ebc=$1;  shift
@@ -55,7 +54,6 @@ _build_test_shim() {
     --bindir "$_bd" \
     --edit-broker-path "$_ebp" \
     --edit-broker-metadata "$_ebm" \
-    --utils-metadata "$_um" \
     --version "$_ver" \
     --shim-utils "$_su" \
     --edit-broker-client "$_ebc" \
@@ -71,14 +69,12 @@ _build_disabled_test_shim() {
   _in=$1;  shift
   _out=$1; shift
   _bd=$1;  shift
-  _um=$1;  shift
   _ver=$1; shift
   _su=$1;  shift
   "$_r/tests/build-test-shim.sh" \
     --input "$_in" \
     --output "$_out" \
     --bindir "$_bd" \
-    --utils-metadata "$_um" \
     --version "$_ver" \
     --shim-utils "$_su" \
     --no-edit-mode \

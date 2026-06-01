@@ -26,11 +26,10 @@
 # caps, digests, and response shape follow the IPC spec; malformed or oversized
 # traffic aborts the session.
 #
-# The shim checks EDIT_BROKER_METADATA before broker mode; the wire carries
-# UTILS_METADATA which must match the installed shim-utils.sh the broker
-# sources. Allowlist content is operator policy (not content-hashed at install);
-# broker validates allowlist and editor-path metadata (owner, mode) and verifies
-# shipped config metadata for profile-selected config basenames before parse.
+# The shim checks EDIT_BROKER_METADATA before broker mode. Allowlist content is
+# operator policy (not content-hashed at install); broker validates allowlist and
+# editor-path metadata (owner, mode) and verifies shipped config metadata for
+# profile-selected config basenames before parse.
 #
 # Out of scope: doas.conf quality; trust in the session TTY; allowlisted editors
 # remain arbitrary code under policy; client timeouts (BROKER_RESPONSE_TIMEOUT_S)
@@ -47,8 +46,6 @@ _TAB=$(printf '\t')
 
 # Baked at install; not set from the environment. @BINDIR@ is Makefile SHIM_PATH
 # (same as shim-utils).
-_SHIM_UTILS_PATH='@SHIM_UTILS@'
-_SHIM_UTILS_METADATA='@UTILS_METADATA@'
 _EDIT_BROKER_STAGING_DIR='@EDIT_BROKER_STAGING_DIR@'
 _EDIT_BROKER_TTY='@EDIT_BROKER_TTY@'
 _ALLOWLIST_PATH='@ALLOWLIST_PATH@'
@@ -95,12 +92,11 @@ fail() {
   printf 'broker: %s\n' "${1:-unspecified failure}" >&2
   exit 0
 }
-fatal() { fail "$*"; } # shim-utils _init calls fatal
+fatal() { fail "$*"; } # embedded shim-utils helpers call fatal
 
-[ -r "$_SHIM_UTILS_PATH" ] || fail "missing shim utils: $_SHIM_UTILS_PATH (install doasudo libexec components)"
-# shellcheck source=../lib/shim-utils.sh
-. "$_SHIM_UTILS_PATH"
+# @SHIM_UTILS_BLOCK@
 
+_init_stat_and_shasum
 _resolve_edit_mode_tools || fail 'shared utils missing from SHIM_PATH (dd, rm, mktemp, wc, cat)'
 _AWK=$(_resolve_bin awk) || fail 'awk not found in SHIM_PATH'
 _MKDIR=$(_resolve_bin mkdir) || fail 'mkdir not found in SHIM_PATH'
@@ -265,13 +261,6 @@ _open_tty() {
 _line=
 IFS= read -r _line || fail 'missing MAGIC line'
 [ "$_line" = "MAGIC=$_MAGIC" ] || fail 'bad MAGIC line'
-
-IFS= read -r _line || fail 'missing UTILS_METADATA line'
-case "$_line" in
-  UTILS_METADATA=*) _utils_meta_req="${_line#UTILS_METADATA=}" ;;
-  *) fail 'bad UTILS_METADATA line' ;;
-esac
-[ "$_utils_meta_req" = "$_SHIM_UTILS_METADATA" ] || fail 'shim utils metadata wire mismatch'
 
 IFS= read -r _line || fail 'missing EDITOR line'
 case "$_line" in

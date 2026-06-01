@@ -208,12 +208,6 @@ rm -f "${_repo}/lib/shim-utils.sh"
 (cd "$_repo" && "$MAKE" $(_make_s) lib/shim-utils.sh lib/edit-broker-client.sh SHIM_PATH="${_mockbin}:${_sys_path}") \
   || { printf 'error: make lib/shim-utils.sh lib/edit-broker-client.sh failed\n' >&2; exit 1; }
 
-_utils_utils_path="${_repo}/lib/shim-utils.sh"
-_utils_metadata=$(_compute_metadata "$_utils_utils_path" 644 stat-ug) || {
-  printf 'error: could not compute metadata for lib/shim-utils.sh\n' >&2
-  exit 1
-}
-
 cat > "${_mockbin}/getent" << 'EOF'
 #!/bin/sh
 set -eu

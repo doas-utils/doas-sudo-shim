@@ -118,7 +118,6 @@ For `nano` and `red`, `_config_file` stays empty; skip the config `_check_file_m
 | Artifact | Mechanism |
 |----------|-----------|
 | `edit-broker.sh` | `EDIT_BROKER_METADATA` (`sha256:0:0:755`) shim gate |
-| `shim-utils.sh` | `UTILS_METADATA` |
 | *Allowlist* | root-owned (`0:0`; *not* group- or world-writable); checked each parse; no baked digest |
 | *Shipped configs* (`vim`/`vimrc`) | `$(BROKER_CONFIG_DIR)/vimrc` vs `BROKER_CONFIG_VIMRC_METADATA`; add a row per new file |
 

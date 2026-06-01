@@ -12,8 +12,8 @@
 #
 # Environment (optional):
 #   MAKE = make program (default: make)
-# The harness runs `make broker/build-to` with EDIT_BROKER_TTY=/dev/null and
-# UTILS_METADATA_PATH + UTILS_METADATA_COMPUTE_MODE=stat-ug (see Makefile).
+# The harness renders lib/shim-utils.sh with the harness SHIM_PATH, then runs
+# `make broker/build-to` (which r-embeds it) with EDIT_BROKER_TTY=/dev/null.
 
 set -eu
 
@@ -169,12 +169,10 @@ fi
 _gen="$_tmp/edit-broker.gen.sh"
 _shim_path=$(dirname -- "$_SHA_TOOL")
 _shim_path="${_shim_path}:/usr/bin:/bin:/usr/sbin:/sbin"
-_common="$_tmp/shim-utils.harness.sh"
+# The broker recipe r-embeds lib/shim-utils.sh; render it with the harness SHIM_PATH.
 # shellcheck disable=SC2046
-(cd "$_repo" && "$MAKE" $(_make_s) shim-utils/build-to SHIM_UTILS_BUILD_TO="$_common" SHIM_PATH="$_shim_path") \
-  || fail_driver 'make shim-utils/build-to failed'
-# Release bake uses 0:0 from Makefile; harness shim-utils lives under $_common with
-# invoking-user ownership; Makefile hashes that path with stat-ug (see metadata-utils.sh).
+(cd "$_repo" && rm -f lib/shim-utils.sh && "$MAKE" $(_make_s) lib/shim-utils.sh SHIM_PATH="$_shim_path") \
+  || fail_driver 'make lib/shim-utils.sh failed'
 # shellcheck disable=SC2046
 (cd "$_repo" && "$MAKE" $(_make_s) broker/build-to \
   "BROKER_BUILD_TO=$_gen" \
@@ -183,15 +181,9 @@ _common="$_tmp/shim-utils.harness.sh"
   "BROKER_ALLOWLIST_PARSER=$_repo/broker/allowlist-parse.awk" \
   "BROKER_CONFIG_DIR=$_broker_config_tmp" \
   "EDIT_BROKER_TTY=/dev/null" \
-  "SHIM_PATH=$_shim_path" \
-  "SHIM_UTILS=$_common" \
-  "UTILS_METADATA_PATH=$_common" \
-  "UTILS_METADATA_COMPUTE_MODE=stat-ug") \
+  "SHIM_PATH=$_shim_path") \
   || fail_driver 'make broker/build-to failed'
 BROKER="$_gen"
-
-UTILS_METADATA_REQ=$(sed -n "s/^_SHIM_UTILS_METADATA='\\(.*\\)'$/\\1/p" "$BROKER" | head -n1)
-[ -n "$UTILS_METADATA_REQ" ] || fail_driver 'could not read SHIM_UTILS_METADATA from generated broker'
 
 # Runs one round-trip: body file -> broker -> compares response body to expect file.
 # $1 = case label (for PASS line)
@@ -212,7 +204,6 @@ run_one() {
   _req="$_tmp/request.$_label.bin"
   {
     printf 'MAGIC=%s\n' "$MAGIC"
-    printf 'UTILS_METADATA=%s\n' "$UTILS_METADATA_REQ"
     printf '%s\n' "EDITOR=$_req_editor"
     printf '%s\n' 'PRE_DIGEST=-'
     printf '%s\n' "REQ_LEN=$_req_len"
@@ -280,7 +271,6 @@ _write_broker_request() {
   _wbr_len=$(wc -c <"$_wbr_body" | awk '{print $1}')
   {
     printf 'MAGIC=%s\n' "$MAGIC"
-    printf 'UTILS_METADATA=%s\n' "$UTILS_METADATA_REQ"
     printf '%s\n' "EDITOR=$_wbr_editor"
     printf '%s\n' "PRE_DIGEST=$_wbr_pre"
     printf '%s\n' "REQ_LEN=$_wbr_len"
