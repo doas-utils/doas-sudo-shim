@@ -8,7 +8,7 @@
 #
 # Assertions below use _pass_t / _fail_t from testlib.sh and optionally ${_err} for stderr checks.
 
-# ---- Assertions shared by edit-mode_test + broker-integration_test -----------------
+# ---- Assertions shared by edit-mode_test + broker-integration_test -----------------------
 
 # $1 label; $2 path; $3 expected (trailing newline lost via $())
 _assert_file_content() {
@@ -26,7 +26,7 @@ _assert_str_eq() {
   else _fail_t "$1" "expected '${3}', got '${2}'"; fi
 }
 
-# ---- kill -0 probe ------------------------------------------------------------------------
+# ---- kill -0 probe -----------------------------------------------------------------------
 # Sandboxes sometimes hide child PIDs from kill -0 (broker timeout + lock paths).
 _broker_kill0_usable=0
 
@@ -64,7 +64,7 @@ _broker_make_temp() {
   printf '%s\n' "$_broker_m"
 }
 
-# ---- Shim bake with SUDO_SHIM_EDIT_BROKER (edit-mode + broker-integration) ---------------
+# ---- Shim bake with DOASUDO_EDIT_BROKER (edit-mode + broker-integration) -----------------
 
 # $1=output path $2=edit-broker path $3=EDIT_BROKER_METADATA value
 # Requires: _build_test_shim (testlib.sh); _repo _shim_src _mockbin _sys_path

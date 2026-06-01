@@ -92,7 +92,7 @@ _resp=$(
 [ "$_resp" = 'RESP_CODE=1' ] \
 	|| die "doas brokerSmoke failed (expected RESP_CODE=1). Got ${_resp:-'(empty)'}. Doas rule & editbroker user OK?"
 
-export SUDO_SHIM_EDIT_BROKER=1
+export DOASUDO_EDIT_BROKER=1
 unset VISUAL
 export SUDO_EDITOR="$BROKER_E2E_EDITOR"
 

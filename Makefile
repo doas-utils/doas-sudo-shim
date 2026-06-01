@@ -220,7 +220,7 @@ endef
 else
 #
 define _shim_edit_utils
--e '/^# @EDIT_MODE_UTILS_BLOCK@$$/d'
+-e '/^# @EDIT_MODE_UTILS_BLOCK@$$/{N;d;}'
 endef
 
 define _sed_entry_edit_mode

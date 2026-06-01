@@ -5,7 +5,7 @@
 # SPDX-License-Identifier: MIT
 # See LICENSE.md. Part of doas-utils/doasudo.
 #
-# Shim baked with SUDO_SHIM_EDIT_BROKER + mock EDITBROKER IPC (moved from edit-mode_test).
+# Shim baked with DOASUDO_EDIT_BROKER + mock EDITBROKER IPC (moved from edit-mode_test).
 #
 # Usage:
 #   sh broker/tests/broker-integration_test.sh [path/to/doasudo.in]
@@ -74,7 +74,7 @@ _run_broker_mode() {
   _rsbm_shim=${3:-$_shim}
   _run_capture_streams env \
     SUDO_EDITOR="${_mockbin}/editor_modify" \
-    SUDO_SHIM_EDIT_BROKER=1 \
+    DOASUDO_EDIT_BROKER=1 \
     MOCK_EDIT_BROKER_MODE="$1" \
     "$_rsbm_shim" -e "$2"
 }

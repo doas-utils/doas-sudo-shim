@@ -117,7 +117,7 @@ The shim checks the installed `lib/edit-broker-client.sh` against the baked `EDI
 
 ## Fail-closed default
 
-When `SUDO_SHIM_EDIT_BROKER=1`, any broker, `doas`, or protocol failure is fatal for that invocation. Set `SUDO_SHIM_EDIT_BROKER=0` (default) to use the direct editor path.
+When `DOASUDO_EDIT_BROKER=1`, any broker, `doas`, or protocol failure is fatal for that invocation. Set `DOASUDO_EDIT_BROKER=0` (default) to use the direct editor path.
 
 ---
 
@@ -131,7 +131,7 @@ When `SUDO_SHIM_EDIT_BROKER=1`, any broker, `doas`, or protocol failure is fatal
 | `broker/edit-broker.sh.in` | Broker source. Bakes staging dir, allowlist path, parser path, TTY path, `SHIM_PATH`, contract constants; embeds `shim-utils.sh`. |
 | `broker/tests/fixtures/ipc/` | Golden header files for drift checks. |
 | `broker/tests/broker-contracts_test.sh` | Checks constants against fixtures and this spec. |
-| `broker/tests/broker-integration_test.sh` | Shim baked with `SUDO_SHIM_EDIT_BROKER` + mock EDITBROKER IPC (protocol). |
+| `broker/tests/broker-integration_test.sh` | Shim baked with `DOASUDO_EDIT_BROKER` + mock EDITBROKER IPC (protocol). |
 
 ---
 

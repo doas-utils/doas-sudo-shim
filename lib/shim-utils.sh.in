@@ -1,10 +1,10 @@
 # ---- Shared shim helpers -----------------------------------------------------------------
 # Embedded into doasudo (always) and the edit broker at build time.
 
-_SUDO_SHIM_PATH='@BINDIR@'
+_DOASUDO_PATH='@BINDIR@'
 
 _resolve_bin() {
-  _rb_path=$(PATH="$_SUDO_SHIM_PATH" command -v "$1" 2>/dev/null) || _rb_path=
+  _rb_path=$(PATH="$_DOASUDO_PATH" command -v "$1" 2>/dev/null) || _rb_path=
   case "$_rb_path" in
     '') [ "${2:-}" = optional ] && return 0; return 1 ;;
     /*) printf '%s' "$_rb_path" ;;

@@ -1,4 +1,3 @@
-# ---- Edit-mode helpers -------------------------------------------------------------------
 # Embedded into doasudo at build time when EDIT_MODE=1 (the default)
 
 # Snippets for sudo -h default arm; doasudo.in declares empty defaults.
@@ -58,10 +57,10 @@ Editor precedence:
     exec /usr/bin/vim -u NONE "\$@"
 
 Edit-mode environment:
-  SUDO_SHIM_CONFIRM_DIFF=1
+  DOASUDO_CONFIRM_DIFF=1
     Show a unified diff and require confirmation before each write-back.
     Without an interactive TTY (or with -n), edit mode exits.
-  SUDO_SHIM_EDIT_BROKER=1
+  DOASUDO_EDIT_BROKER=1
     Enable the optional doas-based edit broker path.
 
 The editor runs as the invoking user (not root). Temporary files are created
@@ -243,7 +242,7 @@ _confirm_writeback_with_diff() {
   _cwd_orig="$1"
   _cwd_new="$2"
 
-  [ "${SUDO_SHIM_CONFIRM_DIFF:-0}" = "1" ] || return 0
+  [ "${DOASUDO_CONFIRM_DIFF:-0}" = "1" ] || return 0
 
   _require_interactive_confirm "diff confirmation enabled, but no interactive TTY is available"
 
@@ -392,7 +391,7 @@ _run_edit_mode() {
   esac
   [ -x "$_editor" ] || edit_mode_die "editor not found or not executable: '${_editor}'"
 
-  _use_edit_broker="${SUDO_SHIM_EDIT_BROKER:-0}"
+  _use_edit_broker="${DOASUDO_EDIT_BROKER:-0}"
   if [ "$_use_edit_broker" = "1" ]; then
     _is_abs_path "$_EDIT_BROKER_PATH" || edit_mode_die "broker path must be absolute: '$_EDIT_BROKER_PATH'"
     _check_meta_str "$_EDIT_BROKER_METADATA" || edit_mode_die "broker metadata unset or invalid (expected '<sha256hex>:<uid>:<gid>:<mode>')"
@@ -404,7 +403,7 @@ _run_edit_mode() {
     # shellcheck disable=SC1090
     . "$_EDIT_BROKER_CLIENT"
   elif [ "$_use_edit_broker" != "0" ]; then
-    edit_mode_die "SUDO_SHIM_EDIT_BROKER must be 0 or 1"
+    edit_mode_die "DOASUDO_EDIT_BROKER must be 0 or 1"
   fi
 
   # ---- Per-file state (all scalars; reset at top of each iteration) ----------------------

@@ -24,7 +24,7 @@ doas make install PREFIX=/usr
 
 The `post-install.sh` script configures the host environment. Executing as non-root safely skips broker user creation and `chown` operations. Running `make post-install` requires empty `DESTDIR`.
 
-The script prints a reminder to merge the configuration snippet into `/etc/doas.conf` (and issues a warning if the source snippet is missing). Broker stays unused until `doas.conf` permits it and caller sets `SUDO_SHIM_EDIT_BROKER=1`. Omitting broker-related `doas` rules keeps direct-edit path only.
+The script prints a reminder to merge the configuration snippet into `/etc/doas.conf` (and issues a warning if the source snippet is missing). Broker stays unused until `doas.conf` permits it and caller sets `DOASUDO_EDIT_BROKER=1`. Omitting broker-related `doas` rules keeps direct-edit path only.
 
 Set `DRY_RUN=1` to simulate operations without mutating the host.
 

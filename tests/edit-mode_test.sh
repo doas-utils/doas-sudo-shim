@@ -556,7 +556,7 @@ printf '\n── Diff-confirm: non-interactive die path ────────
 
 _f="${_tmp}/wb_diff_confirm_no_tty.txt"
 printf 'original\n' > "$_f"
-_without_tty _run_capture_streams env SUDO_SHIM_CONFIRM_DIFF=1 SUDO_EDITOR="${_mockbin}/editor_modify" "$_shim" -e "$_f"
+_without_tty _run_capture_streams env DOASUDO_CONFIRM_DIFF=1 SUDO_EDITOR="${_mockbin}/editor_modify" "$_shim" -e "$_f"
 _assert_exit "diff-confirm: exits 1" 1 "$_rc"
 _assert_string_contains "diff-confirm: message" "diff confirmation enabled, but no interactive TTY is available" "$_err"
 _assert_file_content "diff-confirm: target unchanged" "$_f" "original"
@@ -912,9 +912,9 @@ printf '\n── Interactive confirm: _writeback_confirm returns 0 ────�
 # PTY + inject y (avoids seeding answers in a regular file). Skip without socat.
 
 if [ "$_have_socat" -eq 1 ]; then
-  printf '\n── Diff-confirm interactive accept/decline (PTY) ─────────────────────────────\n'
+  printf '\n── Diff-confirm interactive accept/decline (PTY) ───────────────────────────────\n'
 
-  export SUDO_SHIM_CONFIRM_DIFF=1
+  export DOASUDO_CONFIRM_DIFF=1
   _f="${_tmp}/wb_diff_confirm_accept.txt"
   printf 'original\n' > "$_f"
   export SUDO_EDITOR="${_mockbin}/editor_modify"
@@ -931,7 +931,7 @@ if [ "$_have_socat" -eq 1 ]; then
     _assert_pty_prompt_once "diff-confirm interactive decline: prompt observed once"
     _assert_file_content "diff-confirm interactive decline: target unchanged" "$_f" "original"
   fi
-  unset SUDO_SHIM_CONFIRM_DIFF
+  unset DOASUDO_CONFIRM_DIFF
   unset SUDO_EDITOR
 
   _f="${_tmp}/wb_interactive_confirm_y.txt"

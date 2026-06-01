@@ -33,7 +33,7 @@ _assert_disabled_edit() {
   _assert_string_contains "${_label}: stub message" "$_disabled_msg" "$_err"
 }
 
-printf '\n-- Disabled edit-mode stubs ---------------------------------------------------\n'
+printf '\n── Disabled edit─mode stubs ────────────────────────────────────────────────────\n'
 
 _target="${_tmp}/target.txt"
 printf 'content\n' > "$_target"
@@ -50,7 +50,7 @@ _run_capture_streams "$_sudoedit" "$_target"
 _assert_exit "sudoedit symlink: exits 1" 1 "$_rc"
 _assert_string_contains "sudoedit symlink: stub message" "$_disabled_msg" "$_err"
 
-printf '\n-- Disabled help/version/dispatch --------------------------------------------\n'
+printf '\n── Disabled help/version/dispatch ──────────────────────────────────────────────\n'
 
 _run_capture_streams "$_shim" -h
 _assert_exit "help: exits 0" 0 "$_rc"

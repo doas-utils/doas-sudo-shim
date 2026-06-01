@@ -171,8 +171,6 @@ EOF
   esac
 }
 
-_edit_mode_help() { die "edit mode is not built into this doasudo"; }
-
 # ---- Helpers -----------------------------------------------------------------------------
 
 warn()  { printf 'sudo: warning: %s\n' "$*" >&2; }
@@ -190,8 +188,8 @@ _print_list_notice() {
   printf 'sudo: listing is not supported by doas.\nReview /etc/doas.conf for permitted rules.\n' >&2
 }
 
-# Sets $_user from $1. Dies on empty or #UID argument; numeric UIDs are
-# rejected for portability across doas implementations.
+# Dies on empty or #UID argument; numeric UIDs are rejected for portability
+# across doas implementations.
 # $_user is never string-split by the shim; it is always passed quoted.
 # doas is the authoritative validator.
 _set_user() {
@@ -212,9 +210,8 @@ _set_user() {
 # with normalization to match getent, and falls back to awk on /etc/passwd.
 _get_passwd_field() {
   _gpf_u="${1:-root}"
-  # Guard the field specifier before interpolating it into the awk program.
-  # Accepted values are positive integers from 1 to 7 (field number).
-  # Rejecting anything else closes the awk injection surface.
+  # Guard the field specifier (a passwd field number) before interpolating it
+  # into awk. Rejecting anything else closes the awk injection surface.
   case "$2" in
     [1-7]) ;;
     *) die "_get_passwd_field: invalid field specifier: '${2}'" ;;
@@ -324,8 +321,8 @@ _escape_arg() {
   LC_ALL=C
   _ea_result="" _ea_rest="$1" _ea_shell_mode="${2:-}"
   while [ -n "$_ea_rest" ]; do
-    _ea_ch="${_ea_rest%"${_ea_rest#?}"}"   # first character
-    _ea_rest="${_ea_rest#?}"               # remainder
+    _ea_ch="${_ea_rest%"${_ea_rest#?}"}"  # first character
+    _ea_rest="${_ea_rest#?}"              # remainder
     case "$_ea_ch" in
       [-A-Za-z0-9_])
         _ea_result="${_ea_result}${_ea_ch}" ;;
@@ -343,7 +340,6 @@ _escape_arg() {
 }
 
 # Escapes and space-joins all arguments into a single shell -c string.
-# Used by -i and -s dispatch.
 #
 # An empty argument escapes to nothing, which the receiving shell silently
 # ignores, producing a different command. A trailing newline would be silently
@@ -385,7 +381,12 @@ _exec_login_shell() {
 }
 
 # @SHIM_UTILS_BLOCK@
+
 # @EDIT_MODE_UTILS_BLOCK@
+
+# ---- Edit-mode helpers -------------------------------------------------------------------
+#
+_edit_mode_help() { die "edit mode is not built into this doasudo"; }
 
 _run_edit_mode() { _edit_mode_help; }
 # @EDIT_MODE_BLOCK@
@@ -416,7 +417,7 @@ esac
 
 # ---- Locate and verify doas --------------------------------------------------------------
 #
-# _resolve_bin searches _SUDO_SHIM_PATH, baked in at install time from a
+# _resolve_bin searches _DOASUDO_PATH, baked in at install time from a
 # root-controlled path. User-controlled PATH cannot influence this lookup.
 # The [ -u ] check catches a dropped setuid bit, not PATH substitution.
 _DOAS=$(_resolve_bin doas) || die 'doas not found in SHIM_PATH'
@@ -569,8 +570,8 @@ while [ $# -gt 0 ]; do
     -?*)
       _opts="${1#-}"
       while [ -n "$_opts" ]; do
-        _c="${_opts%"${_opts#?}"}"   # leading character
-        _rest="${_opts#?}"           # remainder of the bundle
+        _c="${_opts%"${_opts#?}"}"  # leading character
+        _rest="${_opts#?}"          # remainder of the bundle
 
         # h/V are terminal and win over -K's exclusivity rule; skip marking
         # so '-Kh' shows help (handled in the dispatch case below) rather
@@ -623,7 +624,7 @@ while [ $# -gt 0 ]; do
               u) _set_user "$_val" ;;
               R) warn "-R/--chroot: not supported by doas; command will run without a chroot" ;;
               D) warn "-D/--chdir: not supported by doas; command will run in the current directory" ;;
-            esac                       # p C T U r t: value consumed, no doas equivalent
+            esac  # p C T U r t: value consumed, no doas equivalent
             _opts=; continue ;;
 
           *) die "unknown option '-${_c}'" ;;

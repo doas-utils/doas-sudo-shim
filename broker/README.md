@@ -2,16 +2,16 @@
 
 The default edit mode in doasudo (`sudo -e`, `sudoedit`, `editas`) stages each file under the invoking user, then writes back as the privileged user. The shim hardens the pre- and post-editor windows; the working copy still lives on the invoker's side of the boundary until write-back. Same-UID exposure surface is acknowledged in the top-level README under [Optional edit-mode broker](../README.md#optional-paranoid-edit-mode-broker).
 
-Edit broker is optional. When it is on, the shim runs a small editor wrapper as a *dedicated user* via `doas`; that user owns the staged bytes. The wrapper speaks `EDITBROKER/1` on stdin/stdout ([Broker IPC Spec.md](Broker%20IPC%20Spec.md)). It starts only binaries whose paths appear under `path =` in the allowlist; `argv`, the `env -i` baseline, and shipped config come from the broker registry ([Editor Allowlist Spec.md](Editor%20Allowlist%20Spec.md)). Write-back follows the legacy privileged path; content returns from broker staging. Broker mode stays off until `SUDO_SHIM_EDIT_BROKER=1`, a broker install path, and `doas.conf` rules all line up; otherwise the shim follows the legacy path in the top-level README.
+Edit broker is optional. When it is on, the shim runs a small editor wrapper as a *dedicated user* via `doas`; that user owns the staged bytes. The wrapper speaks `EDITBROKER/1` on stdin/stdout ([Broker IPC Spec.md](Broker%20IPC%20Spec.md)). It starts only binaries whose paths appear under `path =` in the allowlist; `argv`, the `env -i` baseline, and shipped config come from the broker registry ([Editor Allowlist Spec.md](Editor%20Allowlist%20Spec.md)). Write-back follows the legacy privileged path; content returns from broker staging. Broker mode stays off until `DOASUDO_EDIT_BROKER=1`, a broker install path, and `doas.conf` rules all line up; otherwise the shim follows the legacy path in the top-level README.
 
 ---
 
 ## Opt-in
 
-- Set `SUDO_SHIM_EDIT_BROKER=1` for invocations that should use the broker.
+- Set `DOASUDO_EDIT_BROKER=1` for invocations that should use the broker.
 - Install `doas` rules that permit the caller to run the broker as `EDIT_BROKER_USER` (snippet from install; merge into `/etc/doas.conf`). Post-install and layout: [packaging/README.md](../packaging/README.md).
 
-To ship the broker but never use it, omit those rules and leave `SUDO_SHIM_EDIT_BROKER` unset.
+To ship the broker but never use it, omit those rules and leave `DOASUDO_EDIT_BROKER` unset.
 
 ---
 

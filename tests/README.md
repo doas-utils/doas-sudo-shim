@@ -26,7 +26,7 @@ VERBOSE=1 sh tests/parser_test.sh
 - `broker/tests/broker-contracts_test.sh`: Verifies the shim-broker IPC interface for consistency.
 - `broker/tests/allowlist-parse_test.sh`: Tests the allowlist parser against golden fixtures.
 - `broker/tests/vim-profile_test.sh`: Verifies vim features, and vim config hardening.
-- `broker/tests/broker-integration_test.sh`: Shim baked with `SUDO_SHIM_EDIT_BROKER` and mock EDITBROKER responder (protocol edge cases).
+- `broker/tests/broker-integration_test.sh`: Shim baked with `DOASUDO_EDIT_BROKER` and mock EDITBROKER responder (protocol edge cases).
 - `broker/tests/test-driver.sh`: Exercises the broker binary request/response harness and per-TTY session locks.
 
 ### Write-back and Broker Isolation

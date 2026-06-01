@@ -74,11 +74,11 @@ Two attack families in edit mode are in scope. *Symlink substitution:* an attack
 
 ### Optional (paranoid) edit-mode broker
 
-The default edit mode does not prevent same-UID exposure for the lifetime of the editor session. An optional broker keeps the working copy and editor policy outside the invoking user's tree, and returns edited bytes through a framed protocol; privileged write-back is unchanged. Enable with `SUDO_SHIM_EDIT_BROKER=1`; for installation and security details see: [broker/README.md](broker/README.md).
+The default edit mode does not prevent same-UID exposure for the lifetime of the editor session. An optional broker keeps the working copy and editor policy outside the invoking user's tree, and returns edited bytes through a framed protocol; privileged write-back is unchanged. Enable with `DOASUDO_EDIT_BROKER=1`; for installation and security details see: [broker/README.md](broker/README.md).
 
 ### Optional diffs before saving changes
 
-Setting `SUDO_SHIM_CONFIRM_DIFF=1` in the environment will show a unified diff and require confirmation before each write-back. Without an interactive TTY (or with `-n`), edit mode exits.
+Setting `DOASUDO_CONFIRM_DIFF=1` in the environment will show a unified diff and require confirmation before each write-back. Without an interactive TTY (or with `-n`), edit mode exits.
 
 ---
 
