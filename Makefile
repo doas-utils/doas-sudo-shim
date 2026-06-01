@@ -84,11 +84,14 @@ EDIT_BROKER_PATH ?= $(SHIM_LIBEXEC_DIR)/edit-broker
 EDIT_BROKER_CONTRACTS_PATH ?= $(SHIM_LIBEXEC_DIR)/edit-broker-contracts.env
 
 ifeq ($(EDIT_MODE),1)
-EDIT_MODE_SRC := edit-mode.sh
+EDIT_MODE_SRC := edit-mode.sh lib/edit-mode-utils.sh
 EDIT_BROKER_DEPS := lib/edit-broker-client.sh broker/edit-broker.sh
+# r-embedded sources whose trailing newline the shim recipe must verify.
+EMBED_NL_SRCS := lib/shim-utils.sh lib/edit-mode-utils.sh edit-mode.sh
 else
 EDIT_MODE_SRC :=
 EDIT_BROKER_DEPS :=
+EMBED_NL_SRCS := lib/shim-utils.sh
 endif
 
 # Broker staging (one mktemp file per request; not TMPDIR).
@@ -174,8 +177,19 @@ define _sed_entry_shim_utils
 -e '}'
 endef
 
+# Embed the edit/broker helpers (edit-mode-utils.sh) at @EDIT_MODE_UTILS_BLOCK@.
+# One marker, one file.
+define _sed_entry_edit_mode_utils
+-e '/^# @EDIT_MODE_UTILS_BLOCK@$$/{' \
+-e '  r lib/edit-mode-utils.sh' \
+-e '  d' \
+-e '}'
+endef
+
 ifeq ($(EDIT_MODE),1)
 #
+_shim_edit_utils = $(_sed_entry_edit_mode_utils)
+
 define _sed_entry_edit_mode
 -e '/^_edit_mode_help() { die ".*"; }$$/{N;d;}' \
 -e '/^_run_edit_mode() { _edit_mode_help; }$$/d' \
@@ -205,6 +219,10 @@ endef
 #
 else
 #
+define _shim_edit_utils
+-e '/^# @EDIT_MODE_UTILS_BLOCK@$$/d'
+endef
+
 define _sed_entry_edit_mode
 -e '/^# @EDIT_MODE_BLOCK@$$/d'
 endef
@@ -225,8 +243,15 @@ define _verify_no_unsubst
     || true
 endef
 
+# sed `r` appends raw bytes; a source ($(1) = space-separated list) without a
+# trailing newline splices its last line onto the marker's following line.
+define _require_trailing_newlines
+  @for _f in $(1); do test -z "$$(tail -c1 "$$_f")" \
+    || { printf 'error: %s lacks a trailing newline (breaks sed r-embed)\n' "$$_f" >&2; exit 1; }; done
+endef
+
 # broker substitutions: pipe-separated tokens (no (...) in pattern; breaks $(call)).
-BROKER_SUBST_CHECK_ERE := @EDIT_BROKER_STAGING_DIR@|@ALLOWLIST_PATH@|@ALLOWLIST_PARSER@|@EDIT_BROKER_TTY@|@BINDIR@|@MAGIC@|@MAX_BROKER_BYTES@|@BROKER_CONFIG_DIR@|@BROKER_CONFIG_VIMRC_METADATA@|@SHIM_UTILS_BLOCK@
+BROKER_SUBST_CHECK_ERE := @EDIT_BROKER_STAGING_DIR@|@ALLOWLIST_PATH@|@ALLOWLIST_PARSER@|@EDIT_BROKER_TTY@|@BINDIR@|@MAGIC@|@MAX_BROKER_BYTES@|@BROKER_CONFIG_DIR@|@BROKER_CONFIG_VIMRC_METADATA@|@SHIM_UTILS_BLOCK@|@EDIT_MODE_UTILS_BLOCK@
 
 # ---- Build -------------------------------------------------------------------------------
 
@@ -256,20 +281,24 @@ lib/edit-broker-client.sh: lib/edit-broker-client.sh.in Makefile $(EDIT_BROKER_C
 # reads each file as-is, so a missing final \n would concatenate its last line
 # with the doasudo.in line following the marker. Fail loudly if absent.
 doasudo: doasudo.in VERSION Makefile lib/shim-utils.sh $(EDIT_BROKER_DEPS) $(EDIT_MODE_SRC)
+  $(call _require_trailing_newlines,$(EMBED_NL_SRCS))
   $(_write_broker_metadata) && \
   sed \
+    $(_shim_edit_utils) \
     $(_sed_entry_edit_mode) \
     $(_sed_entry_broker_metadata) \
     $(_sed_entry_shim_utils) \
     $(call _sed_entry,BINDIR,$(SHIM_PATH)) \
     $(call _sed_entry,VERSION,$(VERSION)) \
     $< > $@
-  $(call _verify_no_unsubst,$@,@BINDIR@|@VERSION@|@EDIT_BROKER_METADATA@|@EDIT_MODE_BLOCK@|@SHIM_UTILS_BLOCK@)
+  $(call _verify_no_unsubst,$@,@BINDIR@|@VERSION@|@EDIT_BROKER_METADATA@|@EDIT_MODE_BLOCK@|@EDIT_MODE_UTILS_BLOCK@|@SHIM_UTILS_BLOCK@)
 
 # Edit broker: sed same @...@ tokens as the shim (@BINDIR@ = SHIM_PATH).
-broker/edit-broker.sh: broker/edit-broker.sh.in Makefile $(EDIT_BROKER_CONTRACTS_ENV) lib/shim-utils.sh broker/allowlist-parse.awk
+broker/edit-broker.sh: broker/edit-broker.sh.in Makefile $(EDIT_BROKER_CONTRACTS_ENV) lib/shim-utils.sh lib/edit-mode-utils.sh broker/allowlist-parse.awk
+  $(call _require_trailing_newlines,lib/shim-utils.sh lib/edit-mode-utils.sh)
   sed \
     $(_sed_entry_shim_utils) \
+    $(_sed_entry_edit_mode_utils) \
     $(call _sed_entry,EDIT_BROKER_STAGING_DIR,$(EDIT_BROKER_STAGING_DIR)) \
     $(call _sed_entry,ALLOWLIST_PATH,$(BROKER_ALLOWLIST_PATH)) \
     $(call _sed_entry,EDIT_BROKER_TTY,$(EDIT_BROKER_TTY)) \
@@ -286,10 +315,12 @@ broker/edit-broker.sh: broker/edit-broker.sh.in Makefile $(EDIT_BROKER_CONTRACTS
 # Ad hoc broker path: broker/build-to BROKER_BUILD_TO=/tmp/b.sh plus overrides
 # (EDIT_BROKER_STAGING_DIR, BROKER_ALLOWLIST_PATH, ...). MAGIC/limits from Makefile.
 .PHONY: broker/build-to
-broker/build-to: broker/edit-broker.sh.in Makefile lib/shim-utils.sh
+broker/build-to: broker/edit-broker.sh.in Makefile lib/shim-utils.sh lib/edit-mode-utils.sh
   @test -n "$(BROKER_BUILD_TO)" || { printf 'error: BROKER_BUILD_TO required\n' >&2; exit 1; }
+  $(call _require_trailing_newlines,lib/shim-utils.sh lib/edit-mode-utils.sh)
   sed \
     $(_sed_entry_shim_utils) \
+    $(_sed_entry_edit_mode_utils) \
     $(call _sed_entry,EDIT_BROKER_STAGING_DIR,$(EDIT_BROKER_STAGING_DIR)) \
     $(call _sed_entry,ALLOWLIST_PATH,$(BROKER_ALLOWLIST_PATH)) \
     $(call _sed_entry,EDIT_BROKER_TTY,$(EDIT_BROKER_TTY)) \
@@ -476,6 +507,7 @@ check-all: shellcheck check
 .PHONY: shellcheck
 shellcheck: broker/edit-broker.sh lib/shim-utils.sh lib/edit-broker-client.sh doasudo
   shellcheck -s sh lib/shim-utils.sh
+  shellcheck -s sh lib/edit-mode-utils.sh
   shellcheck -s sh lib/edit-broker-client.sh
   shellcheck -s sh doasudo.in
   shellcheck -s sh edit-mode.sh

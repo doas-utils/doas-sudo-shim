@@ -95,6 +95,7 @@ fail() {
 fatal() { fail "$*"; } # embedded shim-utils helpers call fatal
 
 # @SHIM_UTILS_BLOCK@
+# @EDIT_MODE_UTILS_BLOCK@
 
 _init_stat_and_shasum
 _resolve_edit_mode_tools || fail 'shared utils missing from SHIM_PATH (dd, rm, mktemp, wc, cat)'

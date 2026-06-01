@@ -385,6 +385,7 @@ _exec_login_shell() {
 }
 
 # @SHIM_UTILS_BLOCK@
+# @EDIT_MODE_UTILS_BLOCK@
 
 _run_edit_mode() { _edit_mode_help; }
 # @EDIT_MODE_BLOCK@

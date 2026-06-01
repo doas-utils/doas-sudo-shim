@@ -72,4 +72,14 @@ else
   _fail_t "disabled shim: no _EDIT_BROKER_ vars" "count=${_broker_count}"
 fi
 
+# An EDIT_MODE=0 shim embeds only the core helper (shim-utils.sh) and must carry
+# none of the edit/broker helpers from edit-mode-utils.sh.
+_edit_utils_re='^(_stat_probe|_stat_fd_probe|_init_stat_and_shasum|_digest|_digest_hex64|_read_exact|_write_exact|_wc_bytes|_check_file_meta|_check_meta_str|_check_digest|_resolve_edit_mode_tools|_resolve_shasum|_get_ugm|_get_dev_inode|_get_dir_meta|_get_fd_inode|_get_mtime|_get_size|_is_hex64|_first_hex64|_is_abs_path|_is_decimal|_is_octal)\(\)'
+_edit_utils_hits=$(grep -cE "$_edit_utils_re" "$_shim" 2>/dev/null || true)
+if [ "$_edit_utils_hits" -eq 0 ]; then
+  _pass_t "disabled shim: no edit-mode-utils helpers"
+else
+  _fail_t "disabled shim: no edit-mode-utils helpers" "count=${_edit_utils_hits}"
+fi
+
 _tests_summary

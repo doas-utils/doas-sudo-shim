@@ -14,6 +14,7 @@ _edit_broker_path=
 _edit_broker_metadata=
 _version=
 _shim_utils=
+_edit_mode_utils=
 _edit_broker_client=
 _edit_broker_client_metadata=
 _edit_mode=
@@ -31,6 +32,7 @@ while [ "$#" -gt 0 ]; do
     --edit-broker-metadata) _edit_broker_metadata="${2:-}"; shift 2 ;;
     --version) _version="${2:-}"; shift 2 ;;
     --shim-utils) _shim_utils="${2:-}"; shift 2 ;;
+    --edit-mode-utils) _edit_mode_utils="${2:-}"; shift 2 ;;
     --edit-broker-client) _edit_broker_client="${2:-}"; shift 2 ;;
     --edit-broker-client-metadata) _edit_broker_client_metadata="${2:-}"; shift 2 ;;
     --edit-mode) _edit_mode="${2:-}"; shift 2 ;;
@@ -57,7 +59,9 @@ if [ "$_no_edit_mode" -eq 0 ]; then
   [ -n "$_edit_broker_client" ] || _miss=edit-broker-client
   [ -n "$_edit_broker_client_metadata" ] || _miss=edit-broker-client-metadata
   [ -n "$_edit_mode" ] || _miss=edit-mode
+  [ -n "$_edit_mode_utils" ] || _miss=edit-mode-utils
 else
+  [ -z "$_edit_mode_utils" ] || _miss='no-edit-mode conflicts with --edit-mode-utils'
   [ -z "$_edit_broker_path" ] || _miss='no-edit-mode conflicts with --edit-broker-path'
   [ -z "$_edit_broker_metadata" ] || _miss='no-edit-mode conflicts with --edit-broker-metadata'
   [ -z "$_edit_broker_client" ] || _miss='no-edit-mode conflicts with --edit-broker-client'
@@ -75,6 +79,7 @@ fi
 [ -f "$_shim_utils" ] || { printf 'error: shim-utils not found: %s\n' "$_shim_utils" >&2; exit 1; }
 if [ "$_no_edit_mode" -eq 0 ]; then
   [ -f "$_edit_mode" ] || { printf 'error: edit-mode not found: %s\n' "$_edit_mode" >&2; exit 1; }
+  [ -f "$_edit_mode_utils" ] || { printf 'error: edit-mode-utils not found: %s\n' "$_edit_mode_utils" >&2; exit 1; }
 fi
 
 _marker_count=$(grep -c '^# @EDIT_BROKER_METADATA@$' "$_in" || true)
@@ -92,6 +97,12 @@ _include_marker_count=$(grep -c '^# @EDIT_MODE_BLOCK@$' "$_in" || true)
 _shim_utils_marker_count=$(grep -c '^# @SHIM_UTILS_BLOCK@$' "$_in" || true)
 [ "$_shim_utils_marker_count" -eq 1 ] || {
   printf 'error: expected exactly one # @SHIM_UTILS_BLOCK@ marker in %s\n' "$_in" >&2
+  exit 1
+}
+
+_edit_mode_utils_marker_count=$(grep -c '^# @EDIT_MODE_UTILS_BLOCK@$' "$_in" || true)
+[ "$_edit_mode_utils_marker_count" -eq 1 ] || {
+  printf 'error: expected exactly one # @EDIT_MODE_UTILS_BLOCK@ marker in %s\n' "$_in" >&2
   exit 1
 }
 
@@ -137,6 +148,7 @@ fi
 if [ "$_no_edit_mode" -eq 1 ]; then
   set -- \
     -e '/^# @EDIT_MODE_BLOCK@$/d' \
+    -e '/^# @EDIT_MODE_UTILS_BLOCK@$/d' \
     -e '/^# @SHIM_UTILS_BLOCK@$/{' \
     -e "  r ${_shim_utils}" \
     -e '  d' \
@@ -148,6 +160,10 @@ else
   set -- \
     -e '/^# @EDIT_MODE_BLOCK@$/{' \
     -e "  r ${_edit_mode_processed}" \
+    -e '  d' \
+    -e '}' \
+    -e '/^# @EDIT_MODE_UTILS_BLOCK@$/{' \
+    -e "  r ${_edit_mode_utils}" \
     -e '  d' \
     -e '}' \
     -e '/^# @SHIM_UTILS_BLOCK@$/{' \
@@ -179,6 +195,11 @@ if grep -q '@EDIT_MODE_BLOCK@' "$_out"; then
   exit 1
 fi
 if grep -q '@SHIM_UTILS_BLOCK@' "$_out"; then
+  printf 'error: marker substitution failed in %s\n' "$_out" >&2
+  rm -f "$_out"
+  exit 1
+fi
+if grep -q '@EDIT_MODE_UTILS_BLOCK@' "$_out"; then
   printf 'error: marker substitution failed in %s\n' "$_out" >&2
   rm -f "$_out"
   exit 1

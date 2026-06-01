@@ -56,6 +56,7 @@ _build_test_shim() {
     --edit-broker-metadata "$_ebm" \
     --version "$_ver" \
     --shim-utils "$_su" \
+    --edit-mode-utils "$_r/lib/edit-mode-utils.sh" \
     --edit-broker-client "$_ebc" \
     --edit-broker-client-metadata "$_ebcm" \
     --edit-mode "$_r/edit-mode.sh" \
