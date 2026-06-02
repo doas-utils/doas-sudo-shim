@@ -115,10 +115,11 @@ _sanitize_term() {
   printf '%s' xterm-256color
 }
 
-# Allowlist file: root:root only; not writable by group or others (mode & 022 == 0).
-# Policy gate: parse errors are fail-closed; a writable allowlist is misconfiguration.
+# Allowlist file : root:root only; not writable by group or others (mode & 022 == 0).
+# Follows symlinks so a root-owned link passes on its target's mode.
+# Policy gate: parse errors are fail-closed; a writable target is misconfiguration.
 _check_allowlist_meta() {
-  _alm_ugm=$(_get_ugm "$1") || return 1
+  _alm_ugm=$(_get_ugm "$1" -L) || return 1
   [ $(( 0${_alm_ugm##*:} & 022 )) -eq 0 ] 2>/dev/null || return 1
   case ${_alm_ugm%:*} in
     0:0) return 0;;

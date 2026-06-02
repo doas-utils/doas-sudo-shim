@@ -125,8 +125,9 @@ _get_mtime() { "$_STAT" "$_STAT_FLAG" "$_STAT_MTIME_FMT" "$1" 2>/dev/null || pri
 # shellcheck disable=SC2317,SC2329
 _get_size() { "$_STAT" "$_STAT_FLAG" "$_STAT_SIZE_FMT" "$1" 2>/dev/null || printf '%s' '-'; }
 
-# uid:gid:mode metadata for file $1.
-_get_ugm() { "$_STAT" "$_STAT_FLAG" "$_STAT_UGM_FMT" "$1" 2>/dev/null; }
+# uid:gid:mode metadata for file $1. Pass -L as $2 to follow symlinks.
+# shellcheck disable=SC2086,SC2317,SC2329
+_get_ugm() { "$_STAT" ${2:+-L} "$_STAT_FLAG" "$_STAT_UGM_FMT" "$1" 2>/dev/null; }
 
 # Resolve SHA-256 tool -> _SHASUM, _SHASUM_FLAG (same selection everywhere).
 _resolve_shasum() {
