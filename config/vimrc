@@ -38,6 +38,8 @@ set wildmode=longest:full,full
 if has('patch-8.2.4325')
   set wildoptions=fuzzy,pum
 endif
+set wildignore+=*/.broker-scratch.*
+set wildignore+=*/.edit-broker-lock-*
 
 " ------------------------------------------------------------------------------------------
 " Search
